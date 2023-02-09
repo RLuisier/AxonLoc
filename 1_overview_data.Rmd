@@ -1,6 +1,6 @@
 ---
 title: "Overview of the Data-set"
-author: "Perspectives on AI"
+author: "Raphaelle Luisier"
 date: "Idiap Research Institute -- February 2023"
 output:
   github_document:
@@ -50,7 +50,7 @@ rm(list = ls())
 
 load("./data/myfiles.RData")#"anno_tot","myUTR"
 #myUTR        <- import.gff("./data/myUTR.sorted.gtf",format="gtf")
-#anno_tot     <- read.csv("./data/anno_tot.csv")
+#anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
 names(myUTR) <- as.character(myUTR$ID)
 source("./scripts/nested_fun_differential_PAS.R")
 
