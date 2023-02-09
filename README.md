@@ -13,8 +13,18 @@ RNA-seq data analysis from longitudinal study of patient-specific iPSC-derived c
     1.   [*Intron retention focussed analysis*](./5-IR-focus-analysis.md)
 
 ## Dependencies
-STAR-2.6.0a, fastqc-0.11.5, fastx_toolkit-0.0.14, samtools-1.9, bowtie-1.1.2, RSeqQC, python-3.7.3, kallisto 0.46.0, R-3.6.0. The following packages should be installed:
+R-3.6.0. The following packages should be installed:
+"GenomicRanges"GenomicRanges_1.50.2
+Rsamtools_2.14.0
+rtracklayer_1.58.0
+IRanges_2.32.0
+geneplotter_1.76.0
+multtest_2.54.0
+mclust_6.0.0
+knitr_1.42
 
+
+Bioconductor version 3.16 (BiocManager 1.30.19), R 4.2.2 (2022-10-31)
 
 ```R
 install.packages(c('grDevices','Rsamtools','IRanges','GenomicRanges','rtracklayer','GenomicFeatures','GenomicAlignments','Segmentor3IsBack','GO.db','limma','topGO','biomaRt,'geneplotter','multtest','mclust'))
