@@ -21,13 +21,13 @@ library(wesanderson)
 library(knitr)
 library(mclust)
 #library(limma)
-require(gplots)
+library(gplots)
 #library(lme4)
 #library(nlme)
 warning = FALSE
-#require("GO.db")
-#require("limma")
-#require("topGO")
+library("GO.db")
+require("limma")
+library("topGO")
 #require("biomaRt")
 #require("org.Rn.eg.db")
 #library(grDevices)
@@ -119,12 +119,12 @@ selt.1         <- sel1.1&sel2&sel3
 selt.2         <- sel1.2&sel2&sel3
 ```
 
-
+We find 320 up-regulated genes in NT3 compared to NGF and 385 up-regulated genes in NGF compared to NT3.
 
 
 ```{r continue,echo=FALSE}
-sum(selt.1)#320 NT3>NGF
-sum(selt.2)#385 NGF>NT3
+#sum(selt.1)#320 NT3>NGF
+#sum(selt.2)#385 NGF>NT3
 
 Col            <- rep(rgb(0.2,0.2,0.2,0.4),nrow(res))
 Col[sel2]      <- "black"
@@ -139,38 +139,9 @@ init <- init[match(rownames(res),rownames(init)),]
 colnames(init)<- paste(colnames(init),"[raw CPM]",sep="")
 res <- data.frame(row_info$geneSymbol[match(rownames(res),row_info$txID)],res,row_info[match(rownames(res),row_info$txID),],init,sub)
 
-#write.csv(x=res[selt.1,],file=paste(outdir,"/differential_expression_cb_up_NT3_sep2017.csv",sep=""))
-#write.csv(x=res[selt.2,],file=paste(outdir,"/differential_expression_cb_up_NGF_sep2017.csv",sep=""))
-
-write.csv(x=res[selt.1,],file=paste(outdir,"/differential_expression_cb_up_NT3_sep2017.csv",sep=""))
-write.csv(x=res[selt.2,],file=paste(outdir,"/differential_expression_cb_up_NGF_sep2017.csv",sep=""))
-
-
-res.filt.nt3 <- read.csv("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_expression_cb/differential_expression_cb_up_NT3_sep2017_filtered.csv")
-res.filt.ngf <- read.csv("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_expression_cb/differential_expression_cb_up_NGF_sep2017_filtered.csv")
-
-
-nt3.new <- as.character(res[selt.1,]$txID)
-nt3.old <- as.character(read.csv("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_expression_cb/differential_expression_cb_up_NT3_sep2017.csv")$txID)
-nt3.filt<- as.character(read.csv("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_expression_cb/differential_expression_cb_up_NT3_sep2017_filtered.csv")$txID)
-
-setdiff(nt3.old,nt3.new)
-setdiff(nt3.new,nt3.old)
-setdiff(nt3.filt,nt3.new)
-intersect(nt3.filt,nt3.new)
-
-ngf.new <- as.character(res[selt.2,]$txID)
-ngf.old <- as.character(read.csv("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_expression_cb/differential_expression_cb_up_NGF_sep2017.csv")$txID)
-ngf.filt<- as.character(read.csv("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_expression_cb/differential_expression_cb_up_NGF_sep2017_filtered.csv")$txID)
-
-setdiff(ngf.old,ngf.new)
-setdiff(ngf.new,ngf.old)
-setdiff(ngf.filt,ngf.new)
-intersect(ngf.filt,ngf.new)
-
 
 #J. GO enrichment analysis
-t2g                     <- read.csv("~/Desktop/DataAnalsyisRiccio/t2g_biomaRt.csv")
+t2g                     <- read.csv("./data/t2g_biomaRt.csv")
 txID2GO                 <- tapply(t2g$ensembl_transcript_id,INDEX=t2g$go_id,FUN=function(x)return(x))
 noNodes                 <- 300
 
@@ -189,7 +160,7 @@ mysampleGO.diff           <- lapply(list(res$txID[selt.1],res$txID[selt.2]),func
 
 
 
-tardir <- "~/Desktop/DataAnalsyisRiccio/Nov2017/Differential_expression_cb/enrichment/"
+tardir <- "./data/enrichment/"
 dir.create(tardir)
 Name   <- c("up.DEG.NT3","up.DEG.NGF")
 myenrich            <- lapply(c(1:length(mysampleGO.diff)),function(Z){
@@ -233,124 +204,23 @@ myenrich            <- lapply(c(1:length(mysampleGO.diff)),function(Z){
 })
 
 
-pdf("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_expression_cb/enrichmnet_diff.pdf")
-foi <- list.files(tardir)
-foi <- foi[-grep(foi,pattern="f_filtered.csv")]
-foi <- foi[grep(foi,pattern="filtered.csv")]
 
-par(mfrow=c(2,2),mar=c(3,8,3,3))
-lapply(foi,function(myfile){
-  dat <- read.csv(paste(tardir,myfile,sep=""))
-  if(length(grep(pattern="Fisher",myfile))==1){
-    temp<- -log10(dat$classicFisher)
-  }
-  else{
-    temp<- -log10(dat$weight0Fisher)
-  }
-  names(temp)<-as.character(dat$Term)
-  temp <- rev(temp)
-  barplot(temp,horiz=TRUE,las=1,cex.names=0.7,col="black")
-  mtext(side=3,line=0,text=gsub(myfile,pattern="_filtered.csv",repl=""),cex=0.6)
-})
-
-
-foi <- list.files(tardir)
-foi <- foi[grep(foi,pattern="f_filtered.csv")]
-par(mfrow=c(2,2),mar=c(3,8,3,3))
-lapply(foi,function(myfile){
-  dat <- read.csv(paste(tardir,myfile,sep=""))
-  if(length(grep(pattern="Fisher",myfile))==1){
-    temp<- -log10(dat$classicFisher)
-  }
-  else{
-    temp<- -log10(dat$weight0Fisher)
-  }
-  names(temp)<-as.character(dat$Term)
-  temp <- rev(temp)
-  barplot(temp,horiz=TRUE,las=1,cex.names=0.7,col="black")
-  mtext(side=3,line=0,text=gsub(myfile,pattern="_filtered.csv",repl=""),cex=0.6)
-})
-
-dev.off()
-
-
-pdf("~/Desktop/DataAnalsyisRiccio/Nov2017/Differential_expression_cb/enrichmnet_diff.pdf")
-foi <- list.files(tardir)
-foi <- foi[grep(foi,pattern="_f.csv")]
-enrich <- lapply(foi,function(Z)return(read.csv(paste(tardir,Z,sep=""))))
-par(mfrow=c(2,2),mar=c(3,8,4,3))
-name <- c("Fisher.up.NT3.NGF","Fisher.up.NT3")
-mycols <- c("#81A4D6","#AF71AF")
-lapply(c(1:2),function(IX){
-  enr <- enrich[[IX]]
-  dat<- -log10(enr$classicFisher)
-  names(dat)<- as.character(enr$Term)
-  dat       <- rev(dat)
-  barplot(dat,horiz=TRUE,las=1,cex.lab=0.5,cex.names = 0.5,cex.axis=0.7,main=name[IX],cex.main=0.5,col=mycols[IX])
-})
-
-dev.off()
 
 #Are these longer for those up-regulated in NGF (selt.2) compared to NT3 (selt.1) ?
 myL<-lapply(list(res$txID[selt.1],res$txID[selt.2]),function(Z)return(row_info$maxL[match(Z,row_info$txID)]))
 wilcox.test(myL[[1]],myL[[2]],paired = FALSE)
-Wilcoxon rank sum test with continuity correction
+	Wilcoxon rank sum test with continuity correction
 data:  myL[[1]] and myL[[2]]
-W = 9246.5, p-value = 4.109e-07
+W = 49815, p-value = 1.202e-05
 alternative hypothesis: true location shift is not equal to 0
 
 
 
-myL<-lapply(list(res.filt.nt3$txID,res.filt.ngf$txID),function(Z)return(row_info$maxL[match(Z,row_info$txID)]))
-wilcox.test(myL[[1]],myL[[2]],paired = FALSE)
-Wilcoxon rank sum test with continuity correction
-data:  myL[[1]] and myL[[2]]
-W = 4258.5, p-value = 5.527e-07
-alternative hypothesis: true location shift is not equal to 0
-par(mfrow=c(1,1))
-boxplot(myL,outline=F)
-
-
-res.filt.nt3 <- data.frame(res.filt.nt3,maxL=row_info$maxL[match(res.filt.nt3$txID,row_info$txID)])
-res.filt.ngf <- data.frame(res.filt.ngf,maxL=row_info$maxL[match(res.filt.ngf$txID,row_info$txID)])
-
-
-
-#Are these more likely to be detected in axons? No! So the finding that up-regulated tX in NGF exhibit longer 3' UTR is not amenable to any further logic explanation/finding.
-freq.ngf <- table(anno_tot$detect.txID.ngf[intersect(match(unique(anno_tot$txID),anno_tot$txID),which(anno_tot$NGF.cb.is.expressed.iso|anno_tot$NGF.axon.is.expressed.iso))])
-freq.targeted.ngf <- freq.ngf[2]/sum(freq.ngf[2],freq.ngf[3])
-
-freq.nt3 <- table(anno_tot$detect.txID.nt3[intersect(match(unique(anno_tot$txID),anno_tot$txID),which(anno_tot$NT3.cb.is.expressed.iso|anno_tot$NT3.axon.is.expressed.iso))])
-freq.targeted.nt3 <- freq.nt3[2]/sum(freq.nt3[2],freq.nt3[3])
-
-
-freq.ngf.up.ngf <- table(anno_tot$detect.txID.ngf[intersect(match(res$txID[selt.2],anno_tot$txID),which(anno_tot$NGF.cb.is.expressed.iso|anno_tot$NGF.axon.is.expressed.iso))])
-freq.targeted.up.ngf <- freq.ngf.up.ngf[1]/sum(freq.ngf.up.ngf[2],freq.ngf.up.ngf[1])
-
-freq.nt3.up.nt3 <- table(anno_tot$detect.txID.nt3[intersect(match(res$txID[selt.1],anno_tot$txID),which(anno_tot$NT3.cb.is.expressed.iso|anno_tot$NT3.axon.is.expressed.iso))])
-freq.targeted.nt3.up.nt3 <- freq.nt3.up.nt3[1]/sum(freq.nt3.up.nt3[1],freq.nt3.up.nt3[2])
-
-
-
-freq.nt3.up.ngf <- table(anno_tot$detect.txID.nt3[intersect(match(res$txID[selt.2],anno_tot$txID),which(anno_tot$NT3.cb.is.expressed.iso|anno_tot$NT3.axon.is.expressed.iso))])
-freq.targeted.nt3.up.ngf <- freq.nt3.up.ngf[2]/sum(freq.nt3.up.ngf[2],freq.nt3.up.ngf[3])
-
-
-freq.ngf.up.nt3 <- table(anno_tot$detect.txID.ngf[intersect(match(res$txID[selt.1],anno_tot$txID),which(anno_tot$NGF.cb.is.expressed.iso|anno_tot$NGF.axon.is.expressed.iso))])
-freq.targeted.up.nt3 <- freq.ngf.up.nt3[2]/sum(freq.ngf.up.nt3[2],freq.ngf.up.nt3[3])
-
-
-
-
-
-
-pdf("~/Desktop/DataAnalsyisRiccio/Nov2017/Differential_expression_cbedgeR_plots.pdf")
 par(mfrow=c(2,2),mar=c(3,3,3,3))
-boxplot(myL,outline=F,las=1,main="",frame=F,ylab="3' UTR length",xaxt="n")
+boxplot(myL,outline=F,las=1,main="",frame=F,ylab="3' UTR length",xaxt="n",col=rev(c("#81A4D6","#AF71AF")))
 mtext(side=1,at=c(1,2),line=0,text=c("NT3","NGF"),cex=0.7)
 Col <- rep("grey",length(res$PValue))
 Col[res$PValue<0.01]<- "black"
-#Col[res$txID%in%c(as.character(res.filt.ngf$txID),as.character(res.filt.nt3$txID))]<-"red"
 Col[res$logFC.NT3.NGF.<(-log2(1.5))&res$PValue<0.01]<-"#81A4D6"
 Col[res$logFC.NT3.NGF.>(log2(1.5))&res$PValue<0.01]<-"#AF71AF"
 plot(x=res$logFC,y=-log10(res$PValue),col=Col,pch=19,cex=0.05,xlab="",ylab="",xlim=c(-4,4),frame=F,las=1)
@@ -361,8 +231,6 @@ abline(v=log2(1.5),col="grey",lwd=1,lty=2)
 abline(v=-log2(1.5),col="grey",lwd=1,lty=2)
 text(-3,15,paste("n(NGF>NT3)=",sum(selt.2),sep=""),cex=0.5)
 text(3,15,paste("n(NGF<NT3)=",sum(selt.1),sep=""),cex=0.5)
-text(-3,14,paste("n(NGF>NT3).f=",nrow(res.filt.ngf),sep=""),cex=0.5)
-text(3,14,paste("n(NGF<NT3).f=",nrow(res.filt.nt3),sep=""),cex=0.5)
 par(mfrow=c(2,2),mar=c(5,4,2.5,1),cex=0.7)
 plotMDS(my.dgelist, method="bcv",xlab="",ylab="")
 mtext(side=1,line=2,text="BCV distance 1")
@@ -375,7 +243,7 @@ plotSmear(et, de.tags=detags,xlab="",ylab="")
 mtext(side=1,line=2,text="Average logCPM",cex=0.7)
 mtext(side=2,line=2,text="logFC",cex=0.7)
 abline(h = c(-1, 1), col = "blue")
-dev.off()
+
 
 
 #H. Plot example genes
@@ -385,19 +253,6 @@ data.con.cb          <- anno_tot[anno_tot$NT3.cb.is.expressed.iso|anno_tot$NGF.c
 row_info             <- anno_tot[anno_tot$NT3.cb.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso,]
 data.sum             <- apply(data.con.cb,2,function(Z)return(tapply(Z,INDEX=factor(as.character(row_info$txID)),FUN=sum)))
 data.sum.log2        <- log2(1+data.sum)
-
-
-diff.tx.NGF <- c("ENSRNOT00000025362","ENSRNOT00000022880","ENSRNOT00000025372","ENSRNOT00000005866","ENSRNOT00000066932","ENSRNOT00000018718","ENSRNOT00000007698","ENSRNOT00000026009","ENSRNOT00000051757","ENSRNOT00000016265")
-
-diff.tx.NT3 <- c("ENSRNOT00000022943","ENSRNOT00000022943","ENSRNOT00000004320","ENSRNOT00000022635","ENSRNOT00000024900","ENSRNOT00000007246","ENSRNOT00000030344","ENSRNOT00000072040","ENSRNOT00000068102","ENSRNOT00000022276","ENSRNOT00000025221","ENSRNOT00000044483","ENSRNOT00000018697","ENSRNOT00000003633","ENSRNOT00000076589","ENSRNOT00000050549","ENSRNOT00000027047","ENSRNOT00000017453","ENSRNOT00000043085")
-
-pdf("~/Desktop/DataAnalsyisRiccio/Nov2017/Differential_expression_cb/exemples_diff_genes.pdf")
-par(mfrow=c(3,4),mar=c(3,3,4,2))
-lapply(diff.tx.NGF,function(myTX)plotGenesPoints(mytx=myTX,raw=data.sum.log2))
-par(mfrow=c(3,4),mar=c(2,4,4,2))
-lapply(diff.tx.NT3,function(myTX)plotGenesPoints(mytx=myTX,raw=data.sum.log2))
-dev.off()
-
 plotGenesPoints   <- function(mytx="ENSRNOT00000022880",raw=data.sum.log2){
   
   grp   <- factor(c("NGF","NGF","NT3","NT3"),levels=c("NGF","NT3")) 
@@ -430,63 +285,14 @@ error.bar <- function(x, y, upper, lower=upper, length=0.1,...){
 
 
 
+diff.tx.NGF <- c("ENSRNOT00000025362","ENSRNOT00000022880","ENSRNOT00000025372","ENSRNOT00000005866","ENSRNOT00000066932","ENSRNOT00000018718","ENSRNOT00000007698","ENSRNOT00000026009","ENSRNOT00000051757","ENSRNOT00000016265")
 
-# K. Housekeeping genes CB
-SD_iso  <- apply(log2(1+data.con.cb),1,sd)
-AVG_iso <- apply(log2(1+data.con.cb),1,mean)  
-SD_tx   <- apply(log2(1+data.sum),1,sd)
-AVG_tx  <- apply(log2(1+data.sum),1,mean) 
+diff.tx.NT3 <- c("ENSRNOT00000022943","ENSRNOT00000022943","ENSRNOT00000004320","ENSRNOT00000022635","ENSRNOT00000024900","ENSRNOT00000007246","ENSRNOT00000030344","ENSRNOT00000072040","ENSRNOT00000068102","ENSRNOT00000022276","ENSRNOT00000025221","ENSRNOT00000044483","ENSRNOT00000018697","ENSRNOT00000003633","ENSRNOT00000076589","ENSRNOT00000050549","ENSRNOT00000027047","ENSRNOT00000017453","ENSRNOT00000043085")
 
-par(mfrow=c(2,2))
-smoothScatter(AVG_iso,SD_iso)
-smoothScatter(AVG_tx,SD_tx)
-
-mycoords <- paste(as.character(seqnames(myUTR)),":",as.character(start(myUTR)),"-",as.character(end(myUTR)),sep="")[match(anno_tot$uniqueID,myUTR$ID)]
-
-tempdat_dat_iso <-data.frame(tx=names(AVG_iso),
-                GS=as.character(anno_tot$geneSymbol[match(names(AVG_iso),anno_tot$uniqueID)]),
-                COORD=mycoords[match(names(AVG_iso),anno_tot$uniqueID)],
-                AVG=AVG_iso,SD=SD_iso,
-                log2(1+anno_tot[match(names(AVG_iso),anno_tot$uniqueID),c(16,17,20,21,24,25,28,29)]))
+par(mfrow=c(3,4),mar=c(3,3,4,2))
+lapply(diff.tx.NGF,function(myTX)plotGenesPoints(mytx=myTX,raw=data.sum.log2))
+par(mfrow=c(3,4),mar=c(2,4,4,2))
+lapply(diff.tx.NT3,function(myTX)plotGenesPoints(mytx=myTX,raw=data.sum.log2))
 
 
-
-
-
-tempdat_dat_tx <-data.frame(tx=names(AVG_tx),
-                             GS=as.character(anno_tot$geneSymbol[match(names(AVG_tx),anno_tot$txID)]),
-                             COORD=mycoords[match(names(AVG_tx),anno_tot$txID)],
-                             AVG=AVG_tx,SD=SD_tx,
-                             log2(1+data.sum))
-
-# L. HOUSEKEEPING GENES AXONS
-coloi                <- c("NGF.axon.1.raw.corrected", "NGF.axon.2.raw.corrected" ,"NT3.axon.1.raw.corrected", "NT3.axon.2.raw.corrected")
-data.con.ax          <- anno_tot[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NGF.axon.is.expressed.iso,match(coloi,colnames(anno_tot))]
-row_info             <- anno_tot[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NGF.axon.is.expressed.iso,]
-data.sum.ax          <- apply(data.con.ax,2,function(Z)return(tapply(Z,INDEX=factor(as.character(row_info$txID)),FUN=sum)))
-
-SD_iso  <- apply(log2(1+data.con.ax),1,sd)
-AVG_iso <- apply(log2(1+data.con.ax),1,mean)  
-SD_tx   <- apply(log2(1+data.sum.ax),1,sd)
-AVG_tx  <- apply(log2(1+data.sum.ax),1,mean) 
-
-par(mfrow=c(2,2))
-smoothScatter(AVG_iso,SD_iso)
-smoothScatter(AVG_tx,SD_tx)
-
-
-anno_tot <- data.frame(mycoords,anno_tot)
-
-tempdat_dat_iso_ax <-data.frame(tx=names(AVG_iso),
-                             GS=as.character(anno_tot$geneSymbol[match(names(AVG_iso),anno_tot$uniqueID)]),
-                             COORD=mycoords[match(names(AVG_iso),anno_tot$uniqueID)],
-                             AVG=AVG_iso,SD=SD_iso,
-                             log2(1+anno_tot[match(names(AVG_iso),anno_tot$uniqueID),(c(16,17,20,21,24,25,28,29)-1)]))
-
-
-
-tempdat_dat_tx_ax <-data.frame(tx=names(AVG_tx),
-                            GS=as.character(anno_tot$geneSymbol[match(names(AVG_tx),anno_tot$txID)]),
-                            COORD=mycoords[match(names(AVG_tx),anno_tot$txID)],
-                            AVG=AVG_tx,SD=SD_tx,
-                            log2(1+data.sum.ax))
+```
