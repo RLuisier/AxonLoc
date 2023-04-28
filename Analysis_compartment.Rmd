@@ -4,7 +4,14 @@ author: "Raphaelle Luisier, Idiap Research Institute"
 date: "February 2023"
 output:
   html_document:
+    theme: paper
+#paper readable
+    highlight: monochrome
     code_folding: hide
+    toc: true
+    toc_depth: 2
+#    toc_float: true
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
@@ -40,7 +47,7 @@ require("mclust")
 rm(list = ls())
 ```
 
-### Load the data
+# Load the data
 3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
 
 ```{r load_data_load_scripts}
@@ -53,7 +60,7 @@ source("./scripts/nested_fun_differential_PAS.R")
 
 
 
-## Diversity of mRNA pool in cell body versus axons
+# Diversity of mRNA pool in cell body versus axons
 
 
 
@@ -202,7 +209,7 @@ mtext(side=2,line=2,text="# 3' UTR isoforms detected in axons",cex=0.7)
 ```
 
 
-### Dominant factors underlying axonal localisation
+# Dominant factors underlying axonal localisation
 As shown below, the fraction of 3' UTR reliably expressed in the axonal compartment depends on the expression in the cell body, supporting the hypothesis that the axonal localisation of mRNA is determined by both specific regulators enabling active transports as well as transcriptional level as highly expressed transcripts are more likely to be detected in axons. This does not mean that the latter are passively transported but rather that these are actively transported to the axons through a machiney which 'randomly' recruit mRNA to actively transport these to axons. 
 
 

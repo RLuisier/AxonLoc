@@ -4,7 +4,14 @@ author: "Raphaelle Luisier, Idiap Research Institute"
 date: "February 2023"
 output:
   html_document:
+    theme: paper
+#paper readable
+    highlight: monochrome
     code_folding: hide
+    toc: true
+    toc_depth: 2
+#    toc_float: true
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
@@ -40,7 +47,7 @@ require("mclust")
 rm(list = ls())
 ```
 
-### Load the data
+# Load the data {.tabset}
 3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
 
 ```{r load_data_load_scripts}
@@ -53,7 +60,7 @@ source("./scripts/nested_fun_differential_PAS.R")
 
 
 
-### Analysis of the distribution of the raw count
+# Analysis of the distribution of the raw count {.tabset}
 The distributions of the expression of 12'771 3' UTR isoforms detected in cell body and/or distal axons of sympathetic neurons. As shown below, the detected expression levels in axonal compartment is systematically lower than in cell body compartment. As discussed in materials and method section, the amount of mRNA material obtained from axonal compartment is much lower. Furthermore the large amount of mithondria located in axonal compartments arise in a library maily composed of mithocondrial mRNAs. This leads to technical challenges in library preparation which were overcomed by performing two rounds of mRNA linear amplification. We alos find that one of the axonal samples exposed to NT3 was of lower quality (exhibiting systematically lower expression level), which we take into account in our analysis.
 
 
@@ -128,7 +135,9 @@ for(IX in c(3,7,1,5)){
 ```
 
 
-### Unsupervised clustering analysis of the samples
+# Unsupervised clustering analysis of the samples {.tabset .tabset-fade .tabset-pills}
+
+## All data 
 As shown below using hierarchical clustering and principal component analyses of the 8 samples, the first source of gene expression variation is the compartment while the treatment effect is strongly detected in cell body compared to axonal samples. From this analysis, it is also visible that the NT3 axonal samples are clustering together.  
 ```{r unsupervised_analysis_all,warning=FALSE,fig.width=10, fig.height=5,warning=FALSE}
 layout(matrix(c(1,2,3,1,4,5),ncol=3,nrow=2,byrow =TRUE))
@@ -173,6 +182,9 @@ for(j in c(2:4)){
 }
 ```
 
+
+## Cell body samples
+
 Further looking at the samples from cell body compartment only reveals that while treatment effect is captured by PC1, PC2 and PC3 might reveal some technical bias which should not impact the downstream analysis as distributed across different conditions.
 
 
@@ -213,6 +225,7 @@ for(j in c(2:3)){
 }
 ```
 
+## Axonal samples 
 
 Next looking at the samples from axonal compartment only shows that  treatment effect is detected in PC2 and PC3 while PC1 identifies the NT3 sample with lower amount of reads.
 
