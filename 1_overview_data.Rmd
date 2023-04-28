@@ -1,19 +1,15 @@
 ---
 title: "Overview of the Data-set"
-author: "Raphaelle Luisier"
-date: "Idiap Research Institute -- February 2023"
+author: "Raphaelle Luisier, Idiap Research Institute"
+date: "February 2023"
 output:
-  github_document:
-    toc: true
-    toc_depth: 3
-    dev: jpeg
+  output: html_notebook
 ---
 
 ```{r setup, include=FALSE}
-working_dir = "~/Documents/Scripts/AxonLoc/"
-setwd(working_dir)
-
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache =TRUE)
 knitr::opts_chunk$set(fig.width=16, fig.height=10, figure.align = "center") 
 library(ggplot2) # devtools::install_github('hadley/ggplot2')
 library(RColorBrewer)
@@ -24,9 +20,7 @@ library(mclust)
 require(gplots)
 #library(lme4)
 #library(nlme)
-warning = FALSE
-
-source("http://bioconductor.org/biocLite.R")
+#source("http://bioconductor.org/biocLite.R")
 #require("GO.db")
 #require("limma")
 #require("topGO")
@@ -38,397 +32,52 @@ library(IRanges)
 library(GenomicRanges)
 library(rtracklayer)
 library(geneplotter)
+library("ape")
 require("multtest")
 require("mclust")
 
 rm(list = ls())
-## 
-
 ```
 
-```{r load_data,echo=FALSE}
+### Load the data
+3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
 
+```{r load_data_load_scripts,echo=FALSE}
 load("./data/myfiles.RData")#"anno_tot","myUTR"
 #myUTR        <- import.gff("./data/myUTR.sorted.gtf",format="gtf")
 #anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
-names(myUTR) <- as.character(myUTR$ID)
+names(myUTR)  <- as.character(myUTR$ID)
 source("./scripts/nested_fun_differential_PAS.R")
-
-```
-
-```{r conservation_scores_3UTR,echo=FALSE}
-
-
-mycons <- read.table("./data/conservation_scores_utr.tab")
-
-
-
 ```
 
 
-```{r analysis_content}
-# A. Characterise the expression in each compartment
 
-#Characterise pipeline in terms of how many new annotated: longer, shorter,...
-#no.txID.rn5     <- length(unique(mcols(g3utr)$X.transcript_id.))#22'845 as those for which 3' UTR length was zero were removed
-no.isoforms     <- nrow(anno_tot)
-is.I0           <- tapply(anno_tot$isoform,INDEX=anno_tot$txID,function(Z)return(sum(Z==0)==0))
-no.new.isoform  <- sum(anno_tot$isoform!=0)#13'314 
-no.new.longer   <- sum(anno_tot$newL-anno_tot$initL>=30)
-no.new.shorter  <- sum(-anno_tot$newL+anno_tot$initL>=30)
-focus.iso       <- c(no.new.isoform,no.new.longer,no.new.shorter)
-
-#Novel 3' UTR isoforms
-no.txID.modif   <- sum(tapply(abs(anno_tot$newL-anno_tot$initL),INDEX=factor(as.character(anno_tot$txID)),function(Z)return(sum(Z>30)>0)))#10219 txID modified
-no.txID.extended<- sum(unlist(lapply((anno_tot$maxL-anno_tot$initL)[match(unique(anno_tot$txID),anno_tot$txID)],function(Z)return(Z>30))))#7506 txID extended
-no.txID.shortened<- sum(unlist(lapply((anno_tot$initL-anno_tot$minL)[match(unique(anno_tot$txID),anno_tot$txID)],function(Z)return(Z>30))))#4721 txID shortened
-no.txID.both    <- sum(
-  unlist(lapply((anno_tot$initL-anno_tot$minL)[match(unique(anno_tot$txID),anno_tot$txID)],function(Z)return(Z>30)))&
-  unlist(lapply((anno_tot$maxL-anno_tot$initL)[match(unique(anno_tot$txID),anno_tot$txID)],function(Z)return(Z>30))))#2'008 txID extended
-focus.txID       <- c(no.txID.modif,no.txID.extended,no.txID.shortened,no.txID.both)
+### Analysis of the distribution of the raw count
+The distributions of the expression of 12'771 3' UTR isoforms detected in cell body and/or distal axons of sympathetic neurons. As shown below, the detected expression levels in axonal compartment is systematically lower than in cell body compartment. As discussed in materials and method section, the amount of mRNA material obtained from axonal compartment is much lower. Furthermore the large amount of mithondria located in axonal compartments arise in a library maily composed of mithocondrial mRNAs. This leads to technical challenges in library preparation which were overcomed by performing two rounds of mRNA linear amplification. We alos find that one of the axonal samples exposed to NT3 was of lower quality (exhibiting systematically lower expression level), which we take into account in our analysis.
 
 
-maxdL.pos        <- (anno_tot$maxL-anno_tot$initL)[match(unique(anno_tot$txID),anno_tot$txID)]
-maxdL.pos        <- maxdL.pos[maxdL.pos>0]
-maxdL.neg        <- abs(anno_tot$minL-anno_tot$initL)[match(unique(anno_tot$txID),anno_tot$txID)]
-maxdL.neg        <- maxdL.neg[maxdL.neg>0]
+```{r analysis_distributions,echo=FALSE,fig.width=10, fig.height=5,warning=FALSE}
+data     <- anno_tot[,grep(".raw.corrected",colnames(anno_tot))]#Raw count corrected for reads arising from anti-sense transcripts which have leaked 
+row_info <- anno_tot
 
-
-#txID.expression -- this cannot be used for counting given that there are duplicates in 
-axons                                              <- unique(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso]) 
-cb                                                 <- unique(anno_tot$txID[anno_tot$NGF.cb.is.expressed.iso]) 
-neurons                                            <- union(axons,cb)
-cb.only                                            <- setdiff(cb,axons)
-axon.only                                          <- setdiff(axons,cb)
-both                                               <- intersect(axons,cb)
-detect.txID.ngf                                    <- rep("no",nrow(anno_tot))
-detect.txID.ngf[which(anno_tot$txID%in%both)]      <- "both"
-detect.txID.ngf[which(anno_tot$txID%in%cb.only)]   <- "cb.only"
-detect.txID.ngf[which(anno_tot$txID%in%axon.only)] <- "axon.only"
-anno_tot$detect.txID.ngf                           <- detect.txID.ngf
-
-axons                                              <- unique(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso]) 
-cb                                                 <- unique(anno_tot$txID[anno_tot$NT3.cb.is.expressed.iso]) 
-neurons                                            <- union(axons,cb)
-cb.only                                            <- setdiff(cb,axons)
-axon.only                                          <- setdiff(axons,cb)
-both                                               <- intersect(axons,cb)
-detect.txID.nt3                                    <- rep("no",nrow(anno_tot))
-detect.txID.nt3[which(anno_tot$txID%in%both)]      <- "both"
-detect.txID.nt3[which(anno_tot$txID%in%cb.only)]   <- "cb.only"
-detect.txID.nt3[which(anno_tot$txID%in%axon.only)] <- "axon.only"
-anno_tot$detect.txID.nt3                           <- detect.txID.nt3
-
-
-#uniqueID.expression
-axons                                             <- anno_tot$uniqueID[anno_tot$NGF.axon.is.expressed.iso]
-cb                                                <- anno_tot$uniqueID[anno_tot$NGF.cb.is.expressed.iso]
-neur.neur                                         <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%intersect(cb,axons)&anno_tot$txID%in%both] 
-neur.cb                                           <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(cb,axons)&anno_tot$txID%in%both] 
-neur.ax                                           <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(axons,cb)&anno_tot$txID%in%both]
-ax.ax                                             <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(axons,cb)&anno_tot$txID%in%axon.only]
-cb.cb                                             <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(cb,axons)&anno_tot$txID%in%cb.only]
-
-detect.iso.ngf                                    <- rep("no",nrow(anno_tot))
-detect.iso.ngf[which(anno_tot$uniqueID%in%neur.neur)] <- "neur.neur"
-detect.iso.ngf[which(anno_tot$uniqueID%in%neur.cb)]   <- "neur.cb"
-detect.iso.ngf[which(anno_tot$uniqueID%in%neur.ax)]   <- "neur.ax"
-detect.iso.ngf[which(anno_tot$uniqueID%in%ax.ax)]     <- "ax.ax"
-detect.iso.ngf[which(anno_tot$uniqueID%in%cb.cb)]     <- "cb.cb"
-anno_tot$detect.iso.ngf                           <- detect.iso.ngf
-
-
-axons                                             <- anno_tot$uniqueID[anno_tot$NT3.axon.is.expressed.iso]
-cb                                                <- anno_tot$uniqueID[anno_tot$NT3.cb.is.expressed.iso]
-neur.neur                                         <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%intersect(cb,axons)&anno_tot$txID%in%both] 
-neur.cb                                           <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(cb,axons)&anno_tot$txID%in%both] 
-neur.ax                                           <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(axons,cb)&anno_tot$txID%in%both]
-ax.ax                                             <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(axons,cb)&anno_tot$txID%in%axon.only]
-cb.cb                                             <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(cb,axons)&anno_tot$txID%in%cb.only]
-
-detect.iso.nt3                                        <- rep("no",nrow(anno_tot))
-detect.iso.nt3[which(anno_tot$uniqueID%in%neur.neur)] <- "neur.neur"
-detect.iso.nt3[which(anno_tot$uniqueID%in%neur.cb)]   <- "neur.cb"
-detect.iso.nt3[which(anno_tot$uniqueID%in%neur.ax)]   <- "neur.ax"
-detect.iso.nt3[which(anno_tot$uniqueID%in%ax.ax)]     <- "ax.ax"
-detect.iso.nt3[which(anno_tot$uniqueID%in%cb.cb)]     <- "cb.cb"
-anno_tot$detect.iso.nt3                              <- detect.iso.nt3
-
-#Compare NGF and NT3 in terms of the number of overlapping transcript per compartment
-cb.ngf <- unique(anno_tot$txID[anno_tot$NGF.cb.is.expressed.iso])#13,057
-cb.nt3 <- unique(anno_tot$txID[anno_tot$NT3.cb.is.expressed.iso])#13,210
-ax.ngf <- unique(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso])#6,395
-ax.nt3 <- unique(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso])#5,568
-
-comp.cb <- list(intersect(cb.ngf,cb.nt3),setdiff(cb.ngf,cb.nt3),setdiff(cb.nt3,cb.ngf))
-comp.ax <- list(intersect(ax.ngf,ax.nt3),setdiff(ax.ngf,ax.nt3),setdiff(ax.nt3,ax.ngf))
-
-#Compare NGF and NT3 in terms of the number of overlapping 3' UTR isoforms per compartment
-cb.ngf.i <- unique(anno_tot$uniqueID[anno_tot$NGF.cb.is.expressed.iso])#13,057
-cb.nt3.i <- unique(anno_tot$uniqueID[anno_tot$NT3.cb.is.expressed.iso])#13,210
-ax.ngf.i <- unique(anno_tot$uniqueID[anno_tot$NGF.axon.is.expressed.iso])#6,395
-ax.nt3.i <- unique(anno_tot$uniqueID[anno_tot$NT3.axon.is.expressed.iso])#5,568
-
-comp.cb.i <- list(intersect(cb.ngf.i,cb.nt3.i),setdiff(cb.ngf.i,cb.nt3.i),setdiff(cb.nt3.i,cb.ngf.i))
-comp.ax.i <- list(intersect(ax.ngf.i,ax.nt3.i),setdiff(ax.ngf.i,ax.nt3.i),setdiff(ax.nt3.i,ax.ngf.i))
-
-
-coloi                <- c("NGF.axon.1.raw.corrected","NGF.axon.2.raw.corrected","NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.axon.1.raw.corrected","NT3.axon.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
-mydat               <- anno_tot[,match(coloi,colnames(anno_tot))]
-fact                <- 10^8/apply(mydat,2,sum)
-for(i in c(1:ncol(mydat))){
-  mydat[,i]             <- log2(fact[i]*mydat[,i])
-  mydat[mydat[,i]<=0,i] <- 0
-}
-
-par(mfrow=c(4,2))
-apply(mydat,2,function(Z)return(plot(density(Z))))
-apply(mydat[anno_tot$is.conservative=="TRUE",],2,function(Z)return(plot(density(Z))))
-par(mfrow=c(2,2))
-lapply(c(1,3,5,7),function(IX){
-  plot(mydat[,IX],mydat[,IX+1],pch=19,col=rgb(0,0,0,0.2),cex=0.2,main=colnames(mydat)[IX],frame=F)
-  mtext(side=3,line=0,cex=0.7,text=paste(round(cor(mydat[,IX],mydat[,IX+1],method="spearman"),digit=2)))
-})
-
-
-#Here I perform slightly different analysis in order to compare what is restricted in CB and those targeted to axons.
-cb.ngf <- unique(anno_tot$txID[anno_tot$detect.txID.ngf=="cb.only"])#6'775
-cb.nt3 <- unique(anno_tot$txID[anno_tot$detect.txID.nt3=="cb.only"])#7'798
-ax.ngf <- unique(anno_tot$txID[anno_tot$detect.txID.ngf=="both"])#6'399
-ax.nt3 <- unique(anno_tot$txID[anno_tot$detect.txID.nt3=="both"])#5'526
-
-
-#Analysis of the dependendence between what is detected and 
-colsNGF <- c("#81A4D6","#2D598E","#083872")
-colsNT3 <- c("#AE73B1","#79387C","#57055B")
-#Calculate per range of expression in the cell body, the fraction of transcript detected in the axonal compartment
-avg.cb.ngf        <- apply(log2(1+cbind(anno_tot$NGF.cb.1.norm,anno_tot$NGF.cb.2.norm)),1,mean)
-avg.cb.nt3        <- apply(log2(1+cbind(anno_tot$NT3.cb.1.norm,anno_tot$NT3.cb.2.norm)),1,mean)
-avg.ngf.axons  <- apply(log2(1+cbind(anno_tot$NGF.axon.1.norm,anno_tot$NGF.axon.2.norm)),1,mean)
-avg.nt3.axons  <- apply(log2(1+cbind(anno_tot$NT3.axon.1.norm,anno_tot$NT3.axon.2.norm)),1,mean)
-par(mfrow=c(4,4))
-myLims            <- seq(from=0,by=1.5,to=20)
-bins.ngf          <- cut(avg.cb.ngf,myLims,include.lowest = FALSE)
-bins.nt3          <- cut(avg.cb.nt3,myLims,include.lowest = FALSE)
-frac_detected_ngf <- unlist(tapply(X=anno_tot$detect.txID.ngf,INDEX=bins.ngf,FUN=function(A)return(sum(A=="both")/length(A))))
-frac_detected_nt3 <- unlist(tapply(X=anno_tot$detect.txID.nt3,INDEX=bins.nt3,FUN=function(A)return(sum(A=="both")/length(A))))
-myx <-unlist(lapply(c(2:length(myLims)),function(IX)return(mean(myLims[c(IX,IX-1)]))))
-plot(myx,frac_detected_ngf,las=1,col=colsNGF[1],pch=19,cex=0.7,frame=FALSE,ylab="fraction of detected tX in axons",xlab="expression in cb [log2]",ylim=c(0,1),xlim=c(0,20))
-lines(myx,frac_detected_ngf,las=1,col=colsNGF[1])
-points(myx,frac_detected_nt3,las=1,col=colsNT3[1],pch=19,cex=0.7)
-lines(myx,frac_detected_nt3,las=1,col=colsNT3[1])
-
-myLims            <- seq(from=2,by=0.25,to=4)
-bins.ngf          <- cut(log10(anno_tot$txLength),myLims,include.lowest = FALSE)
-bins.nt3          <- cut(log10(anno_tot$txLength),myLims,include.lowest = FALSE)
-frac_detected_ngf <- unlist(tapply(X=anno_tot$detect.txID.ngf,INDEX=bins.ngf,FUN=function(A)return(sum(A=="both")/length(A))))
-frac_detected_nt3 <- unlist(tapply(X=anno_tot$detect.txID.nt3,INDEX=bins.nt3,FUN=function(A)return(sum(A=="both")/length(A))))
-myx <-unlist(lapply(c(2:length(myLims)),function(IX)return(mean(myLims[c(IX,IX-1)]))))
-plot(myx,frac_detected_ngf,las=1,col=colsNGF[1],pch=19,cex=0.7,frame=FALSE,ylab="fraction of detected tX in axons",xlab="txlength [log10]",ylim=c(0.4,0.8),xlim=c(2,4))
-lines(myx,frac_detected_ngf,las=1,col=colsNGF[1])
-points(myx,frac_detected_nt3,las=1,col=colsNT3[1],pch=19,cex=0.7)
-lines(myx,frac_detected_nt3,las=1,col=colsNT3[1])
+#Here focus on the isoforms annotated in Rn5
+data.sub              <- data
+data.sub              <- data[row_info$is.conservative==TRUE,]
+data.log2             <- log2(data.sub)
+data.log2[data.sub<=1]<-0
+colnames(data.log2)   <- gsub(colnames(data.log2),pattern="\\.raw\\.corrected",repl="")
+temp                  <- lapply(colnames(data.log2),function(Z)return(strsplit(Z,split="\\.")[[1]]))         
+col_info              <- data.frame(do.call(args=temp,what=rbind))
+colnames(col_info)    <- c("treatment","compartment","replicate")
+col_info$group        <- factor(paste(col_info$treatment,col_info$compartment,sep="_"),levels=c("NGF_cb","NGF_axon","NT3_cb","NT3_axon"))
+mycols_treatment      <- c("#81A4D6","#B072B0")
+names(mycols_treatment)<- c("NGF","NT3")
 
 
 
-comp.cb <- list(intersect(cb.ngf,cb.nt3),setdiff(cb.ngf,cb.nt3),setdiff(cb.nt3,cb.ngf))
-comp.ax <- list(intersect(ax.ngf,ax.nt3),setdiff(ax.ngf,ax.nt3),setdiff(ax.nt3,ax.ngf))
-
-
-par(mfrow=c(2,2))
-mp<-barplot(unlist(lapply(comp.cb,length)),las=1,ylim=c(0,14000),col=c("black"),cex.axis=0.7)
-mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
-mtext(side=3,line=0,text=unlist(lapply(comp.cb,length)),at=mp,cex=0.7)
-mtext(side=2,line=2,text="# transcript ID detected in CB",cex=0.7)
-
-mp<-barplot(unlist(lapply(comp.ax,length)),las=1,ylim=c(0,14000),col=c("black"),cex.axis=0.7)
-mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
-mtext(side=3,line=0,text=unlist(lapply(comp.ax,length)),at=mp,cex=0.7)
-mtext(side=2,line=2,text="# transcript ID detected in axons",cex=0.7)
-
-
-
-mp<-barplot(unlist(lapply(comp.cb.i,length)),las=1,ylim=c(0,30000),col=c("black"),cex.axis=0.7)
-mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
-mtext(side=3,line=0,text=unlist(lapply(comp.cb.i,length)),at=mp,cex=0.7)
-mtext(side=2,line=2,text="# transcript ID detected in CB",cex=0.7)
-
-mp<-barplot(unlist(lapply(comp.ax.i,length)),las=1,ylim=c(0,30000),col=c("black"),cex.axis=0.7)
-mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
-mtext(side=3,line=0,text=unlist(lapply(comp.ax.i,length)),at=mp,cex=0.7)
-mtext(side=2,line=2,text="# transcript ID detected in axons",cex=0.7)
-
-
-no.txID.ngf <- c(cb=length(unique(anno_tot$txID[anno_tot$NGF.cb.is.expressed.iso])),
-                 axons=length(unique(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso]) ))
-no.iso.ngf  <- c(cb=length(unique(anno_tot$uniqueID[anno_tot$NGF.cb.is.expressed.iso])),
-                 axons=length(unique(anno_tot$uniqueID[anno_tot$NGF.axon.is.expressed.iso]) ))
-
-no.txID.nt3 <- c(cb=length(unique(anno_tot$txID[anno_tot$NT3.cb.is.expressed.iso])),
-                 axons=length(unique(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso]) ))
-no.iso.nt3  <- c(cb=length(unique(anno_tot$uniqueID[anno_tot$NT3.cb.is.expressed.iso])),
-                 axons=length(unique(anno_tot$uniqueID[anno_tot$NT3.axon.is.expressed.iso]) ))
-
-mycols   <- c(rgb(23/255,71/255,120/255),rgb(119/255,192/255,68/255))
-par(mfrow=c(2,2))
-mp<- barplot(no.iso.ngf,las=1,col=mycols,cex.axis=0.7)
-mtext(side=3,line=0,text=no.iso.ngf,cex=0.7,at=mp)
-mtext(side=3,line=1,text="NGF",cex=0.7)
-mtext(side=2,line=3,text="# isoforms",cex=0.7)
-mp<- barplot(no.txID.ngf,las=1,col=mycols,cex.axis=0.7)
-mtext(side=3,line=0,text=no.txID.ngf,cex=0.7,at=mp)
-mtext(side=3,line=1,text="NGF",cex=0.7)
-mtext(side=2,line=3,text="# txID",cex=0.7)
-
-
-mp<- barplot(no.iso.nt3,las=1,col=mycols,cex.axis=0.7)
-mtext(side=3,line=0,text=no.iso.nt3,cex=0.7,at=mp)
-mtext(side=3,line=1,text="NT3",cex=0.7)
-mp<- barplot(no.txID.nt3,las=1,col=mycols,cex.axis=0.7)
-mtext(side=3,line=0,text=no.txID.nt3,cex=0.7,at=mp)
-mtext(side=3,line=1,text="NT3",cex=0.7)
-
+#Look at the distribution of the data
+par(mfrow=c(1,2))
+boxplot(data.log2,outline=FALSE,las=2)
+multidensity(data.log2)
 
 ```
-
-
-```{r characterise_length}
-Axons.txID.ngf <- unique(as.character(anno_tot$txID)[anno_tot$NGF.axon.is.expressed.iso])
-CB.txID.ngf    <- unique(as.character(anno_tot$txID)[anno_tot$NGF.cb.is.expressed.iso])
-Axons.iso.ngf  <- unique(as.character(anno_tot$uniqueID)[anno_tot$NGF.axon.is.expressed.iso])
-CB.iso.ngf     <- unique(as.character(anno_tot$uniqueID)[anno_tot$NGF.cb.is.expressed.iso])
-
-Axons.txID.nt3 <- unique(as.character(anno_tot$txID)[anno_tot$NT3.axon.is.expressed.iso])
-CB.txID.nt3    <- unique(as.character(anno_tot$txID)[anno_tot$NT3.cb.is.expressed.iso])
-Axons.iso.nt3  <- unique(as.character(anno_tot$uniqueID)[anno_tot$NT3.axon.is.expressed.iso])
-CB.iso.nt3     <- unique(as.character(anno_tot$uniqueID)[anno_tot$NT3.cb.is.expressed.iso])
-
-
-
-L1 <- list(
-  cb.only.gf=setdiff(CB.txID.ngf,Axons.txID.ngf),
-  cb.axons.gf=intersect(CB.txID.ngf,Axons.txID.ngf),
-  axon.only.gf=setdiff(Axons.txID.ngf,CB.txID.ngf),
-  cb.only.t3=setdiff(CB.txID.nt3,Axons.txID.nt3),
-  cb.axons.t3=intersect(CB.txID.nt3,Axons.txID.nt3),
-  axon.only.t3=setdiff(Axons.txID.nt3,CB.txID.nt3)
-)
-
-L2 <- list(
-  cb.only.gf=setdiff(CB.iso.ngf,Axons.iso.ngf),
-  cb.axons.gf=intersect(CB.iso.ngf,Axons.iso.ngf),
-  axon.only.gf=setdiff(Axons.iso.ngf,CB.iso.ngf),
-  cb.only.t3=setdiff(CB.iso.nt3,Axons.iso.nt3),
-  cb.axons.t3=intersect(CB.iso.nt3,Axons.iso.nt3),
-  axon.only.t3=setdiff(Axons.iso.nt3,CB.iso.nt3)
-)
-
-
-#In this version I consider all of them
-maxL.ngf        <- tapply(anno_tot$newL[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso])),FUN=max)
-maxL.nt3        <- tapply(anno_tot$newL[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso])),FUN=max)
-
-initL.ngf       <- tapply(anno_tot$initL[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso])),FUN=function(X)return(X[1]))                     
-initL.nt3       <- tapply(anno_tot$initL[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso])),FUN=function(X)return(X[1]))
-
-no.iso.ngf      <- tapply(anno_tot$initL[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso])),FUN=function(X)return(length(X))) 
-no.iso.nt3      <- tapply(anno_tot$initL[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso])),FUN=function(X)return(length(X))) 
-
-
-anno_tot$maxL.ngf  <- maxL.ngf[match(anno_tot$txID,names(maxL.ngf))]
-anno_tot$initL.ngf <- initL.ngf[match(anno_tot$txID,names(initL.ngf))]
-anno_tot$no.iso.ngf<- no.iso.ngf[match(anno_tot$txID,names(no.iso.ngf))]
-
-anno_tot$maxL.nt3  <- maxL.nt3[match(anno_tot$txID,names(maxL.nt3))]
-anno_tot$initL.nt3 <- initL.nt3[match(anno_tot$txID,names(initL.nt3))]
-anno_tot$no.iso.nt3<- no.iso.nt3[match(anno_tot$txID,names(no.iso.nt3))]
-
-
-
-with.multiple.ngf <- unlist(lapply(L1,function(Z)return(sum(no.iso.ngf[match(Z,names(no.iso.ngf))]>1)/length(Z))))[-c(3:6)]
-with.multiple.nt3 <- unlist(lapply(L1,function(Z)return(sum(no.iso.nt3[match(Z,names(no.iso.nt3))]>1)/length(Z))))[-c(1,2,3,6)]
-
-distr.no.iso.ngf  <- rbind(
-  as.vector(table(no.iso.ngf[match(L1[[1]],names(no.iso.ngf))]))/length(L1[[1]]),
-  (as.vector(table(no.iso.ngf[match(L1[[2]],names(no.iso.ngf))]))[c(1:8)])/length(L1[[2]]))
-
-distr.no.iso.nt3  <- rbind(
-  as.vector(table(no.iso.nt3[match(L1[[4]],names(no.iso.nt3))]))/length(L1[[4]]),
-  (as.vector(table(no.iso.nt3[match(L1[[5]],names(no.iso.nt3))]))[c(1:8)])/length(L1[[5]]))
-
-utrL.ngf          <- list(
-  Ensembl=initL.ngf[match(unique(c(Axons.txID.ngf,CB.txID.ngf)),names(initL.ngf))],
-  cb.only=maxL.ngf[match(L1[[1]],names(maxL.ngf))],
-  axons=maxL.ngf[match(L1[[2]],names(maxL.ngf))]
-)
-
-utrL.nt3          <- list(
-  Ensembl=initL.nt3[match(unique(c(Axons.txID.nt3,CB.txID.nt3)),names(initL.nt3))],
-  cb.only=maxL.nt3[match(L1[[4]],names(maxL.nt3))],
-  axons=maxL.nt3[match(L1[[5]],names(maxL.nt3))]
-)
-
-par(mfrow=c(2,2),mar=c(3,4,3,3))
-mycols <- c(rgb(254/255,218/255,0),rgb(150/255,150/255,150/255),"black")
-mp<- barplot(unlist(lapply(L1,length)),las=1,col=mycols,frame=F)
-mtext(side=3,line=0,text=unlist(lapply(L1,length)),at=mp,cex=0.6)
-mtext(side=2,line=3,text="no.txID")
-
-mycols <- c(rgb(254/255,218/255,0),rgb(150/255,150/255,150/255),"black")
-mp<- barplot(unlist(lapply(L2,length)),las=1,col=mycols,frame=F)
-mtext(side=3,line=0,text=unlist(lapply(L2,length)),at=mp,cex=0.5)
-mtext(side=2,line=3,text="no.3' UTR isoforms")
-
-barplot(cbind(with.multiple.ngf*100,with.multiple.nt3*100),col=c("grey","yellow"),las=1,frame=F,beside=T,ylim=c(0,100))
-mtext(side=2,line=3,text="fraction of txID with multiple iso")
-
-
-barplot(distr.no.iso.ngf*100,beside=T,col=mycols[c(1,2)],las=1,,frame=F)
-mtext(side=2,line=3,text="fraction of txID with multiple iso")
-barplot(distr.no.iso.nt3*100,beside=T,col=mycols[c(1,2)],las=1,,frame=F)
-mtext(side=2,line=3,text="fraction of txID with multiple iso")
-
-
-boxplot(utrL.ngf,outline=F,col=c("white",mycols[c(1,2)]),las=1,frame=F,main="ngf")
-mtext(side=3,line=0,text=unlist(lapply(utrL,length)),at=c(1,2,3),cex=0.5)
-
-boxplot(utrL.nt3,outline=F,col=c("white",mycols[c(1,2)]),las=1,frame=F,main="nt3")
-mtext(side=3,line=0,text=unlist(lapply(utrL,length)),at=c(1,2,3),cex=0.5)
-
-boxplot(c(utrL.nt3,utrL.ngf),outline=F,col=c("white",mycols[c(1,2)]),las=1,frame=F)
-mtext(side=3,line=0,text=unlist(lapply(utrL,length)),at=c(1,2,3),cex=0.5)
-
-#Statistical test to to test whether the difference in 3'UTR length is significant
-wilcox.test(utrL.ngf[[2]],utrL.ngf[[3]], paired=F)$p.value
-[1]1.719778e-20
-wilcox.test(utrL.nt3[[2]],utrL.nt3[[3]], paired=F)$p.value
-[1] 5.181898e-10
-
-
-
-#Statistical test to test whether the fraction of txID with mult iso is different
-Is.axons    <- union(as.character(anno_tot$txID)[anno_tot$NGF.axon.is.expressed.iso],
-                     as.character(anno_tot$txID)[anno_tot$NGF.cb.is.expressed.iso])%in%L1[[2]]
-Is.multiple <- anno_tot$no.iso.ngf[match(union(as.character(anno_tot$txID)[anno_tot$NGF.axon.is.expressed.iso],
-                                               as.character(anno_tot$txID)[anno_tot$NGF.cb.is.expressed.iso]),anno_tot$txID)]>1
-
-fisher.test(Is.axons,Is.multiple)$p.value
- 6.081664e-78
-temp<-as.matrix(table(Is.axons,Is.multiple))
-temp<-temp/length(Is.axons)
-
-Is.axons    <- union(as.character(anno_tot$txID)[anno_tot$NT3.axon.is.expressed.iso],
-                     as.character(anno_tot$txID)[anno_tot$NT3.cb.is.expressed.iso])%in%L1[[4]]
-Is.multiple <- anno_tot$no.iso.nt3[match(union(as.character(anno_tot$txID)[anno_tot$NT3.axon.is.expressed.iso],
-                                               as.character(anno_tot$txID)[anno_tot$NT3.cb.is.expressed.iso]),anno_tot$txID)]>1
-
-fisher.test(Is.axons,Is.multiple)$p.value
-1.085599e-48
-temp<-as.matrix(table(Is.axons,Is.multiple))
-temp<-temp/length(Is.axons)
-
-
-
-
-```
-
