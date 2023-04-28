@@ -3,7 +3,8 @@ title: "Overview of the Data-set"
 author: "Raphaelle Luisier, Idiap Research Institute"
 date: "February 2023"
 output:
-  output: html_notebook
+  html_document:
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
@@ -42,7 +43,7 @@ rm(list = ls())
 ### Load the data
 3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
 
-```{r load_data_load_scripts,echo=FALSE}
+```{r load_data_load_scripts}
 load("./data/myfiles.RData")#"anno_tot","myUTR"
 #myUTR        <- import.gff("./data/myUTR.sorted.gtf",format="gtf")
 #anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
@@ -56,7 +57,7 @@ source("./scripts/nested_fun_differential_PAS.R")
 The distributions of the expression of 12'771 3' UTR isoforms detected in cell body and/or distal axons of sympathetic neurons. As shown below, the detected expression levels in axonal compartment is systematically lower than in cell body compartment. As discussed in materials and method section, the amount of mRNA material obtained from axonal compartment is much lower. Furthermore the large amount of mithondria located in axonal compartments arise in a library maily composed of mithocondrial mRNAs. This leads to technical challenges in library preparation which were overcomed by performing two rounds of mRNA linear amplification. We alos find that one of the axonal samples exposed to NT3 was of lower quality (exhibiting systematically lower expression level), which we take into account in our analysis.
 
 
-```{r analysis_distributions,echo=FALSE,fig.width=10, fig.height=5,warning=FALSE}
+```{r analysis_distributions,fig.width=10, fig.height=5,warning=FALSE}
 data     <- anno_tot[,grep(".raw.corrected",colnames(anno_tot))]#Raw count corrected for reads arising from anti-sense transcripts which have leaked 
 row_info <- anno_tot
 
@@ -79,5 +80,289 @@ names(mycols_treatment)<- c("NGF","NT3")
 par(mfrow=c(1,2))
 boxplot(data.log2,outline=FALSE,las=2)
 multidensity(data.log2)
+
+```
+
+
+As shown below, although one the NT3 axonal sample does exhibit lower quality, the correlation between technical replicates is similar as for the NGF samples.
+
+
+```{r correlation_between_samples,warning=FALSE,fig.width=10, fig.height=3,warning=FALSE}
+par(mfrow=c(1,4))
+#CB NGF
+plot(data.log2[,"NGF.cb.1"],data.log2[,"NGF.cb.2"],cex=0.2,col=rgb(0,0,0,0.2),pch=19,main="NGF Cell Body",las=1,frame=FALSE,xlab="Cell body 1 [log2(read counts)]",ylab="Cell body 2 [log2(read counts)]")
+abline(0,1,col="red")
+mtext(side=3,line=0,text=paste("PCC=",round(cor(data.log2[,"NGF.cb.1"],data.log2[,"NGF.cb.2"]),digits=2)),cex=1.0)
+#CB NT3
+plot(data.log2[,"NT3.cb.1"],data.log2[,"NT3.cb.2"],cex=0.2,col=rgb(0,0,0,0.2),pch=19,main="NT3 Cell Body",las=1,frame=FALSE,xlab="Cell body 1 [log2(read counts)]",ylab="Cell body 2 [log2(read counts)]")
+abline(0,1,col="red")
+mtext(side=3,line=0,text=paste("PCC=",round(cor(data.log2[,"NT3.cb.1"],data.log2[,"NT3.cb.2"]),digits=2)),cex=1.0)
+#Axons NGF
+plot(data.log2[,"NGF.axon.1"],data.log2[,"NGF.axon.2"],cex=0.2,col=rgb(0,0,0,0.2),pch=19,main="NGF Axons",las=1,frame=FALSE,xlab="Axons 1 [log2(read counts)]",ylab="Axons 2 [log2(read counts)]")
+abline(0,1,col="red")
+mtext(side=3,line=0,text=paste("PCC=",round(cor(data.log2[,"NGF.axon.1"],data.log2[,"NGF.axon.2"]),digits=3)),cex=1.0)
+#Axons NT3
+plot(data.log2[,"NT3.axon.1"],data.log2[,"NT3.axon.2"],cex=0.2,col=rgb(0,0,0,0.2),pch=19,main="NT3 Axons",las=1,frame=FALSE,xlab="Axon 1 [log2(read counts)]",ylab="Axon 2 [log2(read counts)]")
+abline(0,1,col="red")
+mtext(side=3,line=0,text=paste("PCC=",round(cor(data.log2[,"NT3.axon.1"],data.log2[,"NT3.axon.2"]),digits=3)),cex=1.0)
+```
+
+While the above plots are derived from expression quantification based on the Rn5 annotation, below is shown a similar analysis using the total pool of 35,534 3' UTR isoforms which contain 12,771 Rn5 3' UTRs and 22,763 novel 3' UTRs. Using the entire pool of transcripts, the correlation between samples is lower which may be due to increased diversity in transcriptome.
+
+```{r correlation_between_samples_all,warning=FALSE,fig.width=10, fig.height=3,warning=FALSE}
+
+coloi                <- c("NGF.axon.1.raw.corrected","NGF.axon.2.raw.corrected","NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.axon.1.raw.corrected","NT3.axon.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
+mydat               <- anno_tot[,match(coloi,colnames(anno_tot))]
+fact                <- 10^8/apply(mydat,2,sum)
+for(i in c(1:ncol(mydat))){
+  mydat[,i]             <- log2(fact[i]*mydat[,i])
+  mydat[mydat[,i]<=0,i] <- 0
+}
+
+
+par(mfrow=c(1,4),mar=c(4,4,2,2))
+for(IX in c(3,7,1,5)){
+  plot(mydat[,IX],mydat[,IX+1],pch=19,col=rgb(0,0,0,0.2),cex=0.2,frame=F,las=1,xlab=gsub(colnames(mydat)[IX],pattern="\\.raw\\.corrected",repl=""),ylab=gsub(colnames(mydat)[IX+1],pattern="\\.raw\\.corrected",repl=""))
+  mtext(side=3,line=0,cex=0.7,text=paste("SRC=",round(cor(mydat[,IX],mydat[,IX+1],method="spearman"),digit=2)))
+}
+```
+
+
+### Unsupervised clustering analysis of the samples
+As shown below using hierarchical clustering and principal component analyses of the 8 samples, the first source of gene expression variation is the compartment while the treatment effect is strongly detected in cell body compared to axonal samples. From this analysis, it is also visible that the NT3 axonal samples are clustering together.  
+```{r unsupervised_analysis_all,warning=FALSE,fig.width=10, fig.height=5,warning=FALSE}
+layout(matrix(c(1,2,3,1,4,5),ncol=3,nrow=2,byrow =TRUE))
+#HC
+dist1               <- as.matrix(cor(data.log2,metho="spearman",use="na.or.complete"))
+mydist              <- as.dist(1-dist1)
+hcl                 <- hclust(mydist, method = "complete", members = NULL)
+plot(as.phylo(hcl),tip.color=mycols_treatment[match(col_info$treatment,names(mycols_treatment))] ,cex=1.0,label.offset = 0.001,no.margin = FALSE,use.edge.length=TRUE,direction="rightwards",plot=TRUE,font=1)
+
+#SVD on the entire set
+#1. SVD init
+SVD_eset<- svd(data.log2)
+pi      <- SVD_eset$d*SVD_eset$d/sum(SVD_eset$d*SVD_eset$d)
+d       <- -1*sum(pi*log10(pi))/log10(length(pi))
+#2. Remvove first component
+datm    <- data.log2-SVD_eset$d[1]*(SVD_eset$u[,1]%*%t(SVD_eset$v[,1]))
+SVD_eset<- svd(datm)
+pip      <- SVD_eset$d*SVD_eset$d/sum(SVD_eset$d*SVD_eset$d)
+dp       <- -1*sum(pip*log10(pip))/log10(length(pip))
+
+
+mypoints       <- c(4,19)
+names(mypoints)<- c("cb","axon")
+
+mypchs=rep(mypoints,2)
+mycols=c(rep(mycols_treatment[1],2),rep(mycols_treatment[2],2))
+mylegs=paste(names(mypchs),names(mycols),sep=":")
+
+par(mar=c(4,4,1,1))
+barplot(pip[c(1:which(cumsum(pip)>=0.99)[1])],las=1,ylim=c(0,1),cex.main=0.7,cex.axis=1.0,col="black")
+mtext(side = 1, line = 2, text ="principal components", col = "black",cex=0.7, font=1)
+mtext(side = 2, line = 2, text ="Fraction of explained variance", col = "black",cex=0.7, font=1)
+mtext(side = 3, line = -2, text = paste("Shannon Entropy = ",round(dp,digits=3)), col = "black",cex=0.7, font=1)
+i=1
+for(j in c(2:4)){
+  plot(SVD_eset$v[,i],SVD_eset$v[,j],pch=mypoints[match(col_info$compartment,names(mypoints))],col=mycols_treatment[match(col_info$treatment,names(mycols_treatment))],xlab=paste("PC",i,sep=""),ylab=paste("PC",j,sep=""),cex=1.5)
+  abline(h=0,col="grey",lty=2)
+  abline(v=0,col="grey",lty=2)
+  if(j==2){
+    legend("bottomright",ncol=1,pch=mypchs,col=mycols,leg=mylegs,cex=0.8)
+  }
+}
+```
+
+Further looking at the samples from cell body compartment only reveals that while treatment effect is captured by PC1, PC2 and PC3 might reveal some technical bias which should not impact the downstream analysis as distributed across different conditions.
+
+
+```{r unsupervised_analysis_cb,warning=FALSE,fig.width=10, fig.height=2.4,warning=FALSE}
+par(mfrow=c(1,3))
+ix_oi <- col_info$compartment=="cb"
+dat_cb <- data.log2[,ix_oi]
+#SVD on the entire set
+#1. SVD init
+SVD_eset<- svd(dat_cb)
+pi      <- SVD_eset$d*SVD_eset$d/sum(SVD_eset$d*SVD_eset$d)
+d       <- -1*sum(pi*log10(pi))/log10(length(pi))
+#2. Remvove first component
+datm    <- dat_cb-SVD_eset$d[1]*(SVD_eset$u[,1]%*%t(SVD_eset$v[,1]))
+SVD_eset<- svd(datm)
+pip      <- SVD_eset$d*SVD_eset$d/sum(SVD_eset$d*SVD_eset$d)
+dp       <- -1*sum(pip*log10(pip))/log10(length(pip))
+
+
+mypoints       <- c(4,19)
+names(mypoints)<- c("cb","axon")
+
+mypchs=rep(mypoints,2)
+mycols=c(rep(mycols_treatment[1],2),rep(mycols_treatment[2],2))
+mylegs=paste(names(mypchs),names(mycols),sep=":")
+
+par(mar=c(4,4,1,1))
+barplot(pip[c(1:which(cumsum(pip)>=0.99)[1])],las=1,ylim=c(0,1),cex.main=0.7,cex.axis=1.0,col="black")
+mtext(side = 1, line = 2, text ="principal components", col = "black",cex=0.7, font=1)
+mtext(side = 2, line = 2, text ="Fraction of explained variance", col = "black",cex=0.7, font=1)
+mtext(side = 3, line = -2, text = paste("SE = ",round(dp,digits=3)), col = "black",cex=0.7, font=1)
+i=1
+for(j in c(2:3)){
+  plot(SVD_eset$v[,i],SVD_eset$v[,j],col="white",xlab=paste("PC",i,sep=""),ylab=paste("PC",j,sep=""),xlim=c(min(SVD_eset$v[,i])-0.1,max(SVD_eset$v[,i])+0.1),ylim=c(min(SVD_eset$v[,j])-0.1,max(SVD_eset$v[,j])+0.1))
+  text(x=SVD_eset$v[,i],y=SVD_eset$v[,j],labels=colnames(dat_cb),col=mycols_treatment[match(col_info$treatment[ix_oi],names(mycols_treatment))],cex=0.7)
+  abline(h=0,col="grey",lty=2)
+  abline(v=0,col="grey",lty=2)
+}
+```
+
+
+Next looking at the samples from axonal compartment only shows that  treatment effect is detected in PC2 and PC3 while PC1 identifies the NT3 sample with lower amount of reads.
+
+```{r unsupervised_analysis_ax,warning=FALSE,fig.width=10, fig.height=2.5,warning=FALSE}
+par(mfrow=c(1,3))
+ix_oi <- col_info$compartment=="axon"
+dat_cb <- data.log2[,ix_oi]
+#SVD on the entire set
+#1. SVD init
+SVD_eset<- svd(dat_cb)
+pi      <- SVD_eset$d*SVD_eset$d/sum(SVD_eset$d*SVD_eset$d)
+d       <- -1*sum(pi*log10(pi))/log10(length(pi))
+#2. Remvove first component
+datm    <- dat_cb-SVD_eset$d[1]*(SVD_eset$u[,1]%*%t(SVD_eset$v[,1]))
+SVD_eset<- svd(datm)
+pip      <- SVD_eset$d*SVD_eset$d/sum(SVD_eset$d*SVD_eset$d)
+dp       <- -1*sum(pip*log10(pip))/log10(length(pip))
+
+
+mypoints       <- c(4,19)
+names(mypoints)<- c("cb","axon")
+
+mypchs=rep(mypoints,2)
+mycols=c(rep(mycols_treatment[1],2),rep(mycols_treatment[2],2))
+mylegs=paste(names(mypchs),names(mycols),sep=":")
+
+par(mar=c(4,4,1,1))
+barplot(pip[c(1:which(cumsum(pip)>=0.99)[1])],las=1,ylim=c(0,1),cex.main=0.7,cex.axis=1.0,col="black")
+mtext(side = 1, line = 2, text ="principal components", col = "black",cex=0.7, font=1)
+mtext(side = 2, line = 2, text ="Fraction of explained variance", col = "black",cex=0.7, font=1)
+mtext(side = 3, line = -2, text = paste("Shannon Entropy = ",round(dp,digits=3)), col = "black",cex=0.7, font=1)
+i=1
+for(j in c(2:3)){
+  plot(SVD_eset$v[,i],SVD_eset$v[,j],col="white",xlab=paste("PC",i,sep=""),ylab=paste("PC",j,sep=""),xlim=c(min(SVD_eset$v[,i])-0.1,max(SVD_eset$v[,i])+0.1),ylim=c(min(SVD_eset$v[,j])-0.1,max(SVD_eset$v[,j])+0.1))
+  text(x=SVD_eset$v[,i],y=SVD_eset$v[,j],labels=colnames(dat_cb),col=mycols_treatment[match(col_info$treatment[ix_oi],names(mycols_treatment))],cex=0.7)
+  abline(h=0,col="grey",lty=2)
+  abline(v=0,col="grey",lty=2)
+}
+```
+
+In summary this preliminary unsupervised analysis shows that both treatment and compartment effects are detected at the expression level however that axonal samples exhibit weaker difference between NGF and NT3 condition.
+
+
+## Characterisation of the compartments in terms of detected 3' UTR isoforms
+
+
+```{r analysis_content,warning=FALSE,fig.width=10, fig.height=2.5,warning=FALSE}
+# A. Characterise the expression in each compartment
+
+#Characterise pipeline in terms of how many new annotated: longer, shorter,...
+no.isoforms     <- nrow(anno_tot)
+is.I0           <- tapply(anno_tot$isoform,INDEX=anno_tot$txID,function(Z)return(sum(Z==0)==0))
+no.new.isoform  <- sum(anno_tot$isoform!=0)#13'314 
+no.new.longer   <- sum(anno_tot$newL-anno_tot$initL>=30)
+no.new.shorter  <- sum(-anno_tot$newL+anno_tot$initL>=30)
+focus.iso       <- c(no.new.isoform,no.new.longer,no.new.shorter)
+
+#Novel 3' UTR isoforms
+no.txID.modif     <- sum(tapply(abs(anno_tot$newL-anno_tot$initL),INDEX=factor(as.character(anno_tot$txID)),function(Z)return(sum(Z>30)>0)))#10418 txID modified
+no.txID.extended  <- sum(unlist(lapply((anno_tot$maxL-anno_tot$initL)[match(unique(anno_tot$txID),anno_tot$txID)],function(Z)return(Z>30))))#8430 txID extended
+no.txID.shortened <- sum(unlist(lapply((anno_tot$initL-anno_tot$minL)[match(unique(anno_tot$txID),anno_tot$txID)],function(Z)return(Z>30))))#4664 txID shortened
+no.txID.both      <- sum(
+  unlist(lapply((anno_tot$initL-anno_tot$minL)[match(unique(anno_tot$txID),anno_tot$txID)],function(Z)return(Z>30)))&
+    unlist(lapply((anno_tot$maxL-anno_tot$initL)[match(unique(anno_tot$txID),anno_tot$txID)],function(Z)return(Z>30))))#2111 txID both
+focus.txID       <- c(no.txID.modif,no.txID.extended,no.txID.shortened,no.txID.both)
+
+
+maxdL.pos        <- (anno_tot$maxL-anno_tot$initL)[match(unique(anno_tot$txID),anno_tot$txID)]
+maxdL.pos        <- maxdL.pos[maxdL.pos>0]
+maxdL.neg        <- abs(anno_tot$minL-anno_tot$initL)[match(unique(anno_tot$txID),anno_tot$txID)]
+maxdL.neg        <- maxdL.neg[maxdL.neg>0]
+
+
+axons                                              <- unique(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso]) 
+cb                                                 <- unique(anno_tot$txID[anno_tot$NGF.cb.is.expressed.iso]) 
+neurons                                            <- union(axons,cb)
+cb.only                                            <- setdiff(cb,axons)
+axon.only                                          <- setdiff(axons,cb)
+both                                               <- intersect(axons,cb)
+detect.txID.ngf                                    <- rep("no",nrow(anno_tot))
+detect.txID.ngf[which(anno_tot$txID%in%both)]      <- "both"
+detect.txID.ngf[which(anno_tot$txID%in%cb.only)]   <- "cb.only"
+detect.txID.ngf[which(anno_tot$txID%in%axon.only)] <- "axon.only"
+anno_tot$detect.txID.ngf                           <- detect.txID.ngf
+
+axons                                              <- unique(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso]) 
+cb                                                 <- unique(anno_tot$txID[anno_tot$NT3.cb.is.expressed.iso]) 
+neurons                                            <- union(axons,cb)
+cb.only                                            <- setdiff(cb,axons)
+axon.only                                          <- setdiff(axons,cb)
+both                                               <- intersect(axons,cb)
+detect.txID.nt3                                    <- rep("no",nrow(anno_tot))
+detect.txID.nt3[which(anno_tot$txID%in%both)]      <- "both"
+detect.txID.nt3[which(anno_tot$txID%in%cb.only)]   <- "cb.only"
+detect.txID.nt3[which(anno_tot$txID%in%axon.only)] <- "axon.only"
+anno_tot$detect.txID.nt3                           <- detect.txID.nt3
+
+
+#uniqueID.expression
+axons                                             <- anno_tot$uniqueID[anno_tot$NGF.axon.is.expressed.iso]
+cb                                                <- anno_tot$uniqueID[anno_tot$NGF.cb.is.expressed.iso]
+neur.neur                                         <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%intersect(cb,axons)&anno_tot$txID%in%both] 
+neur.cb                                           <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(cb,axons)&anno_tot$txID%in%both] 
+neur.ax                                           <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(axons,cb)&anno_tot$txID%in%both]
+ax.ax                                             <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(axons,cb)&anno_tot$txID%in%axon.only]
+cb.cb                                             <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(cb,axons)&anno_tot$txID%in%cb.only]
+
+detect.iso.ngf                                    <- rep("no",nrow(anno_tot))
+detect.iso.ngf[which(anno_tot$uniqueID%in%neur.neur)] <- "neur.neur"
+detect.iso.ngf[which(anno_tot$uniqueID%in%neur.cb)]   <- "neur.cb"
+detect.iso.ngf[which(anno_tot$uniqueID%in%neur.ax)]   <- "neur.ax"
+detect.iso.ngf[which(anno_tot$uniqueID%in%ax.ax)]     <- "ax.ax"
+detect.iso.ngf[which(anno_tot$uniqueID%in%cb.cb)]     <- "cb.cb"
+anno_tot$detect.iso.ngf                           <- detect.iso.ngf
+
+
+axons                                             <- anno_tot$uniqueID[anno_tot$NT3.axon.is.expressed.iso]
+cb                                                <- anno_tot$uniqueID[anno_tot$NT3.cb.is.expressed.iso]
+neur.neur                                         <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%intersect(cb,axons)&anno_tot$txID%in%both] 
+neur.cb                                           <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(cb,axons)&anno_tot$txID%in%both] 
+neur.ax                                           <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(axons,cb)&anno_tot$txID%in%both]
+ax.ax                                             <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(axons,cb)&anno_tot$txID%in%axon.only]
+cb.cb                                             <- as.character(anno_tot$uniqueID)[anno_tot$uniqueID%in%setdiff(cb,axons)&anno_tot$txID%in%cb.only]
+
+detect.iso.nt3                                        <- rep("no",nrow(anno_tot))
+detect.iso.nt3[which(anno_tot$uniqueID%in%neur.neur)] <- "neur.neur"
+detect.iso.nt3[which(anno_tot$uniqueID%in%neur.cb)]   <- "neur.cb"
+detect.iso.nt3[which(anno_tot$uniqueID%in%neur.ax)]   <- "neur.ax"
+detect.iso.nt3[which(anno_tot$uniqueID%in%ax.ax)]     <- "ax.ax"
+detect.iso.nt3[which(anno_tot$uniqueID%in%cb.cb)]     <- "cb.cb"
+anno_tot$detect.iso.nt3                              <- detect.iso.nt3
+
+#Compare NGF and NT3 in terms of the number of overlapping transcript per compartment
+cb.ngf <- unique(anno_tot$txID[anno_tot$NGF.cb.is.expressed.iso])#13174
+cb.nt3 <- unique(anno_tot$txID[anno_tot$NT3.cb.is.expressed.iso])#13324
+ax.ngf <- unique(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso])#6536
+ax.nt3 <- unique(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso])#5693
+
+comp.cb <- list(intersect(cb.ngf,cb.nt3),setdiff(cb.ngf,cb.nt3),setdiff(cb.nt3,cb.ngf))
+comp.ax <- list(intersect(ax.ngf,ax.nt3),setdiff(ax.ngf,ax.nt3),setdiff(ax.nt3,ax.ngf))
+
+#Compare NGF and NT3 in terms of the number of overlapping 3' UTR isoforms per compartment
+cb.ngf.i <- unique(anno_tot$uniqueID[anno_tot$NGF.cb.is.expressed.iso])#28824
+cb.nt3.i <- unique(anno_tot$uniqueID[anno_tot$NT3.cb.is.expressed.iso])#28813
+ax.ngf.i <- unique(anno_tot$uniqueID[anno_tot$NGF.axon.is.expressed.iso])#9474
+ax.nt3.i <- unique(anno_tot$uniqueID[anno_tot$NT3.axon.is.expressed.iso])#7893
+
+comp.cb.i <- list(intersect(cb.ngf.i,cb.nt3.i),setdiff(cb.ngf.i,cb.nt3.i),setdiff(cb.nt3.i,cb.ngf.i))
+comp.ax.i <- list(intersect(ax.ngf.i,ax.nt3.i),setdiff(ax.ngf.i,ax.nt3.i),setdiff(ax.nt3.i,ax.ngf.i))
+
+
 
 ```
