@@ -34,6 +34,10 @@ Bioconductor version 3.16 (BiocManager 1.30.19), R 4.2.2 (2022-10-31)
 3’ end sequencing of RNA isolated from axons and cell bodies of sympathetic neurons exposed to either Nerve Growth factor (NGF) or Neurotrophin 3 (NT3). 
 Source code related to the manuscript **The RNA Binding proteome of axonal mRNAs in sympathetic neurons**, Luisier et al. (2023).
 
+## Overview of the data
+The analysis of the read count and samples is presented in the following document which source code can be acessed in [sdfs]:
+https://htmlpreview.github.io/?https://github.com/RLuisier/AxonalTransport/blob/master/Untitled.html
+
 
 
 
