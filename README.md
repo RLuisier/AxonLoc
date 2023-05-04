@@ -42,7 +42,8 @@ The analysis of the read count and samples is presented [here](https://htmlprevi
 ### 1. Compartment-specific analysis
 The analysis of the compartment-specific mRNA pools and factors underlying axonal localisation is presented [here](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/Analysis_compartment.html) which source code can be acessed in [Analysis_compartment.Rmd](./Analysis_compartment.Rmd).
 
-
+### 1. Differential gene expression analysis
+The analysis of the differential gene expression analysis between NT3 and NGF conditions together with transcription factor analysis can be found [here](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/DGE_cell_body.html)..
 
 
 
