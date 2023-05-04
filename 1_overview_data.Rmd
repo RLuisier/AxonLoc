@@ -58,6 +58,50 @@ names(myUTR)  <- as.character(myUTR$ID)
 source("./scripts/nested_fun_differential_PAS.R")
 ```
 
+```{r selection_expressed_isoforms,eval=FALSE}
+# An isoforms is considered to be reliably expressed if in all the samples the probability of it belonging to the non-expressed class is below 0.05 (less than 5% chance to below to the background in both replicates) -- soft threshold
+#OR
+# An isoforms is considered to be expressed if in at least one of the replicate the probability of it belonging to the expressed class is above 0.1 (more than 10% chance to belong to the foreground in at least one replicate) -- hard threshold
+
+SelectExpressed <- function(dat=log2(htseq[,1]+1),frac.bg=0.6,frac.fg=0.1){
+  bimdens       <- densityMclust(data=dat,G=2)
+  x   <- seq(from=0, to=max(dat),length=100)
+  if(is.na(bimdens$parameters$variance$sigmasq[2])){
+    Lim.fg           <- qnorm(frac.fg,mean=bimdens$parameters$mean[2],sd=sqrt(bimdens$parameters$variance$sigmasq[1]))
+    Lim.bg           <- qnorm(frac.bg,mean=bimdens$parameters$mean[1],sd=sqrt(bimdens$parameters$variance$sigmasq[1]))
+    hx2              <- dnorm(x,mean=bimdens$parameters$mean[2],sd=sqrt(bimdens$parameters$variance$sigmasq[1]))
+  }
+  if(!is.na(bimdens$parameters$variance$sigmasq[2])){
+    Lim.fg           <- qnorm(frac.fg,mean=bimdens$parameters$mean[2],sd=sqrt(bimdens$parameters$variance$sigmasq[2]))
+    Lim.bg           <- qnorm(frac.bg,mean=bimdens$parameters$mean[1],sd=sqrt(bimdens$parameters$variance$sigmasq[1]))
+    hx2              <- dnorm(x,mean=bimdens$parameters$mean[2],sd=sqrt(bimdens$parameters$variance$sigmasq[2]))
+  }
+  
+  hx1 <- dnorm(x,mean=bimdens$parameters$mean[1],sd=sqrt(bimdens$parameters$variance$sigmasq[1]))
+  hist(dat,breaks=50,col=rgb(0,0,0,alpha=0.2),freq=FALSE,xlab="",ylab="",main="",ylim=c(0,0.4),las=1,xlim=c(0,20))
+  lines(x,hx2 , lwd=2, col="blue")
+  lines(x,hx1 , lwd=2, col="red")
+  abline(v=Lim.fg,col="blue",lty=2)
+  abline(v=Lim.bg,col="red",lty=2)
+  return(c(Lim.bg,Lim.fg))
+}
+
+
+par(mfrow=c(2,4))
+mydat<-data.sum
+for(i in c(1:ncol(mydat))){
+  mydat[,i] <- log2(data.sum[,i]+1)
+}
+lims      <- apply(mydat,2,function(Z)2^SelectExpressed(dat=Z,frac.bg=0.999,frac.fg=0.1))
+
+tempsel   <- apply(data.sum,2,function(Z)return(Z>=mean(lims[1,c(1,2)])))
+soft.sel  <- cbind(tempsel[,1]&tempsel[,2],tempsel[,3]&tempsel[,4])
+tempsel   <- do.call(what=cbind,lapply(c(1:4),function(Z)return(data.sum[,Z]>=lims[2,Z])))
+hard.sel  <- cbind(tempsel[,1]|tempsel[,2],tempsel[,3]|tempsel[,4])
+final.sel <- cbind(soft.sel[,1]|hard.sel[,1],soft.sel[,2]|hard.sel[,2])
+
+```
+
 
 
 # Analysis of the distribution of the raw count {.tabset}

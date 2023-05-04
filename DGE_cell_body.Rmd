@@ -1,0 +1,389 @@
+---
+title: "Differential gene expression analysis"
+author: "Idiap Research Institute"
+date: "February 2023"
+output:
+  html_document:
+    theme: paper
+#paper readable
+    highlight: monochrome
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+#    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache =TRUE)
+knitr::opts_chunk$set(fig.width=16, fig.height=10, figure.align = "center") 
+library(ggplot2) # devtools::install_github('hadley/ggplot2')
+library(RColorBrewer)
+library(wesanderson)
+library(knitr)
+library(mclust)
+#library(limma)
+require(gplots)
+#library(lme4)
+#library(nlme)
+#source("http://bioconductor.org/biocLite.R")
+#require("GO.db")
+#require("limma")
+#require("topGO")
+#require("biomaRt")
+#require("org.Rn.eg.db")
+#library(grDevices)
+library(Rsamtools)
+library(IRanges)
+library(GenomicRanges)
+library(rtracklayer)
+library(geneplotter)
+library("ape")
+require("multtest")
+require("mclust")
+require("edgeR")
+library(colortools)
+rm(list = ls())
+```
+
+# Load the data {.tabset}
+3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
+
+
+```{r load_data_load_scripts,warning=FALSE,fig.width=8, fig.height=4}
+load("./data/myfiles.RData")#"anno_tot","myUTR"
+#load("~/Desktop/DataAnalsyisRiccio/NGFvsNT3/files_analysis_Sep2017.RData")#Version September 2017 (remove 10% antisense)32632 3' UTR isoforms
+#myUTR        <- import.gff("./data/myUTR.gtf",format="gtf")
+#anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
+source("./scripts/nested_fun_differential_PAS.R")
+
+
+plotGenesPoints   <- function(mytx="ENSRNOT00000022880",raw=data.sum.log2){
+  
+  grp   <- factor(c("NGF","NGF","NT3","NT3"),levels=c("NGF","NT3")) 
+  mycols <- rep(c("#81A4D6","#AF72B0"),2)
+  myX   <- c(1,3)
+  
+  
+  all  <-tapply(raw[match(mytx,rownames(raw)),],INDEX=grp,FUN=function(X)return(X))
+  mym  <-tapply(raw[match(mytx,rownames(raw)),],INDEX=grp,FUN=function(X)return(mean(X)))
+  
+  plot(xlim=c(0,max(myX)+0.5),ylim=c(floor(min(unlist(all))),ceiling(max(unlist(all)))),x=rep(myX[1],length(all[[1]])),y=all[[1]],col=mycols[1],pch=19,frame=F,cex=0.8,ylab="",xlab="",las=1,xaxt="n")
+  #plot(xlim=c(0,max(myX)+0.5),ylim=c(8,16),x=rep(myX[1],length(all[[1]])),y=all[[1]],col=mycols[1],pch=19,frame=F,cex=0.8,ylab="",xlab="",las=1,xaxt="n")
+  
+  arrows(x0=myX[1]-0.5,y0=mym[1], x1=myX[1]+0.5, angle=90, code=3, length=0,col=mycols[1])
+  for(i in c(2:length(myX))){
+    points(x=rep(myX[i],length(all[[i]])),y=all[[i]],col=mycols[i],pch=19,cex=0.8)
+    arrows(x0=myX[i]-0.5,y0=mym[i], x1=myX[i]+0.5, angle=90, code=3, length=0,col=mycols[i])
+  }
+  mtext(side=2,line=3,text="read count [log2]",cex=0.7)
+  mtext(side=1,line=0,text=c("NGF","NT3"),at=c(1.5,3.5),cex=0.7)  
+  mtext(side=3,line=0,text=mytx,cex=0.7)
+  mtext(side=3,line=1,text=as.character(anno_tot$geneSymbol)[match(mytx,anno_tot$txID)],cex=0.7)
+}
+
+error.bar <- function(x, y, upper, lower=upper, length=0.1,...){
+  if(length(x) != length(y) | length(y) !=length(lower) | length(lower) != length(upper))
+    stop("vectors must be same length")
+  arrows(x,y+upper, x, y-lower, angle=90, code=3, length=length, ...)
+}
+
+```
+
+
+
+# Perfom differential gene expression analysis using edgeR
+
+```{r dge_edgeR,warning=FALSE,fig.width=8, fig.height=4}
+#A. Select only those reliably expressed in CB
+coloi                <- c("NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
+data.con.cb          <- anno_tot[anno_tot$NT3.cb.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso,match(coloi,colnames(anno_tot))]
+row_info             <- anno_tot[anno_tot$NT3.cb.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso,]
+
+#B. Sum-up all reads from same tX
+data.sum             <- apply(data.con.cb,2,function(Z)return(tapply(Z,INDEX=factor(as.character(row_info$txID)),FUN=sum)))
+row_info             <- row_info[match(rownames(data.sum),row_info$txID),]
+
+#C. Remove redundant tX for same GS selecting only those which have longest 3' UTR
+temp              <- as.vector(row_info$maxL)
+names(temp)       <- as.character(row_info$txID)
+txOI              <- tapply(temp,INDEX=factor(as.character(row_info$geneSymbol)),function(Z)return(names(Z)[which(Z==max(Z))[1]]))
+mysel             <- which(row_info$txID%in%txOI)
+data.sum          <- data.sum[mysel,]
+row_info          <- row_info[mysel,]
+
+#D. edgeR normalisation (all together)
+count.matrix          <- data.sum
+group                 <- factor(c("NGF","NGF","NT3","NT3"),levels=c("NGF","NT3"))
+my.dgelist            <- DGEList(counts = count.matrix,group = group)
+
+
+#E.  Calculate normalization factors; stored in my.dgelist$samples
+my.dgelist  <- calcNormFactors(my.dgelist)
+
+#F. Estimate the common dispersion; stored in my.dgelist$common.disp
+my.dgelist  <- estimateCommonDisp(my.dgelist)
+
+#G. Estimate tagwise dispersions
+my.dgelist  <- estimateTagwiseDisp(my.dgelist)
+
+#H. The square root of the common dispersion gives the coefficient of variation of biological variation (BCV).
+bcv_samples<-round(sqrt(my.dgelist$common.disp),digits=2)
+
+
+#I. Estimate mean expression
+TD               <- group
+design           <- model.matrix(~0+TD)
+colnames(design) <- levels(TD)
+#The GLM likelihood ratio test is based on the idea of fitting negative binomial GLMs with the Cox-Reid dispersion estimates.
+#Given raw counts, a fixed value for the dispersion parameter and a design matrix, the function glmFit() fits the negative binomial GLM for each tag and produces an object of class DGEGLM with some new components
+fit              <- glmFit(my.dgelist,design)
+et               <- exactTest(my.dgelist,pair=c("NGF","NT3"))#Will compare NT3 versus NGF
+detags           <- rownames(topTags(et)$table)
+de               <- decideTestsDGE(et, p=0.1, adjust="BH")
+detags           <- rownames(my.dgelist)[as.logical(de)]
+res              <- et$table
+res              <- data.frame(res,cpm(my.dgelist)[, order(my.dgelist$samples$group)])
+res$GS           <- as.character(row_info$geneSymbol)[match(as.character(rownames(res)),as.character(row_info$txID))]
+#res$is.diff      <- rownames(res)%in%detags
+
+#Create output of differentially expressed genes
+sel1           <- abs(res$logFC)>log2(1.5)
+sel1.1         <- res$logFC>log2(1.5)
+sel1.2         <- res$logFC<(log2(1/1.5))
+sel2           <- res$PValue<=0.01
+sel3           <- p.adjust(res$PValue,method="fdr")<0.1
+selt.1         <- sel1.1&sel2&sel3
+selt.2         <- sel1.2&sel2&sel3
+
+#sum(selt.2)#232 NGF>NT3
+#sum(selt.1)#119 NT3>NGF
+
+colnames(res)[1]  <- "logFC[NT3-NGF]"
+sub               <- cpm(fit$fitted.values)
+sub               <- sub[match(rownames(res),rownames(sub)),]
+colnames(sub)     <- paste(colnames(sub),"[fitted CPM]",sep="")
+init              <- cpm(fit$counts)
+init              <- init[match(rownames(res),rownames(init)),]
+colnames(init)    <- paste(colnames(init),"[raw CPM]",sep="")
+res               <- data.frame(row_info$geneSymbol[match(rownames(res),row_info$txID)],res,row_info[match(rownames(res),row_info$txID),],init,sub)
+
+layout(matrix(c(1,1,2,3,1,1,4,5),ncol=4,nrow=2,byrow = TRUE))
+par(mar=c(3,3,3,3))
+Col <- rep("grey",length(res$PValue))
+Col[res$PValue<0.01]<- "black"
+Col[res$logFC.NT3.NGF.<(-log2(1.5))&res$PValue<0.01]<-"#81A4D6"
+Col[res$logFC.NT3.NGF.>(log2(1.5))&res$PValue<0.01]<-"#AF71AF"
+plot(x=res$logFC,y=-log10(res$PValue),col=Col,pch=19,cex=0.05,xlab="",ylab="",xlim=c(-4,4),frame=F,las=1)
+mtext(side=2,line=2,text="-log10(P-Value)",cex=0.7)
+mtext(side=1,line=2,text="log2FC",cex=0.7)
+abline(h=-log10(0.01),col="grey",lwd=1,lty=2)
+abline(v=log2(1.5),col="grey",lwd=1,lty=2)
+abline(v=-log2(1.5),col="grey",lwd=1,lty=2)
+text(-3,15,paste("n(NGF>NT3)=",sum(selt.2),sep=""),cex=0.5)
+text(3,15,paste("n(NGF<NT3)=",sum(selt.1),sep=""),cex=0.5)
+
+diff.tx.NGF <- c("ENSRNOT00000025362","ENSRNOT00000022880","ENSRNOT00000025372","ENSRNOT00000005866","ENSRNOT00000066932","ENSRNOT00000018718","ENSRNOT00000007698","ENSRNOT00000026009","ENSRNOT00000051757","ENSRNOT00000016265")
+
+diff.tx.NT3 <- c("ENSRNOT00000022943","ENSRNOT00000022943","ENSRNOT00000004320","ENSRNOT00000022635","ENSRNOT00000024900","ENSRNOT00000007246","ENSRNOT00000030344","ENSRNOT00000072040","ENSRNOT00000068102","ENSRNOT00000022276","ENSRNOT00000025221","ENSRNOT00000044483","ENSRNOT00000018697","ENSRNOT00000003633","ENSRNOT00000076589","ENSRNOT00000050549","ENSRNOT00000027047","ENSRNOT00000017453","ENSRNOT00000043085")
+coloi                <- c("NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
+data.con.cb          <- anno_tot[anno_tot$NT3.cb.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso,match(coloi,colnames(anno_tot))]
+row_info             <- anno_tot[anno_tot$NT3.cb.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso,]
+data.sum             <- apply(data.con.cb,2,function(Z)return(tapply(Z,INDEX=factor(as.character(row_info$txID)),FUN=sum)))
+data.sum.log2        <- log2(1+data.sum)
+
+plotGenesPoints(mytx=diff.tx.NGF[1],raw=data.sum.log2)
+plotGenesPoints(mytx=diff.tx.NGF[2],raw=data.sum.log2)
+plotGenesPoints(mytx=diff.tx.NT3[1],raw=data.sum.log2)
+plotGenesPoints(mytx=diff.tx.NT3[2],raw=data.sum.log2)
+
+#write.csv(res[selt.2,],"./zenodo/dge/differential_expression_cb_up_NGF.csv")
+#write.csv(res[selt.2,],"./zenodo/dge/differential_expression_cb_up_NT3.csv")
+#
+#up_NGF <- read.csv("./zenodo/dge/differential_expression_cb_up_NGF.csv")#232
+#up_NT3 <- read.csv("./zenodo/dge/differential_expression_cb_up_NT3.csv")#119
+
+#Check reproduciblity
+#venn(data=list(upNGFi=unique(as.character(up_NGF$GS)),upNGFn=unique(as.character(res$GS)[selt.2])))
+#venn(data=list(upNT3i=unique(as.character(up_NT3$GS)),upNT3n=unique(as.character(res$GS)[selt.1])))
+
+
+```
+
+# Gene Ontology Enrichment Analysis
+
+
+```{r enrichment_analysis,eval=FALSE}
+t2g                     <- read.csv("./data/t2g_biomaRt.csv")
+txID2GO                 <- tapply(t2g$ensembl_transcript_id,INDEX=t2g$go_id,FUN=function(x)return(x))
+noNodes                 <- 300
+
+GetGOI <- function(sampleGO=temp.sampleGO,mygoID=as.character(temp$GO.ID)[1]){
+  entrez.oi       <- intersect(genesInTerm(sampleGO, mygoID)[[1]],sigGenes(sampleGO))
+  gs.oi           <- unique(as.character(t2g$external_gene_name[match(entrez.oi,t2g$ensembl_transcript_id)]))
+  return(paste(gs.oi, collapse = ', '))
+}
+
+mysampleGO.diff           <- lapply(list(res$txID[selt.1],res$txID[selt.2]),function(Z){
+  geneNames              <- unique(t2g$ensembl_transcript_id)
+  geneList               <- factor(as.integer(geneNames %in% Z))
+  names(geneList)        <- geneNames
+  return(new("topGOdata",description = "Simple session", ontology = "BP",allGenes = geneList, geneSel = Z,nodeSize = 10,annot = annFUN.GO2genes,GO2gene=txID2GO))
+})
+
+
+
+tardir <- "./zenodo/dge/enrichment/"
+dir.create(tardir)
+Name   <- c("up.DEG.NT3","up.DEG.NGF")
+myenrich            <- lapply(c(1:length(mysampleGO.diff)),function(Z){
+  mysampleGO              <- mysampleGO.diff[[Z]]
+  resultFisher            <- runTest(mysampleGO, algorithm = "classic", statistic = "fisher")
+  resultFisher.weight01   <- runTest(mysampleGO, algorithm = "weight01", statistic = "fisher")
+  temp                    <- GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "classicFisher", ranksOf = "classicFisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"Fisher_",Name[Z],".csv",sep=""))
+  
+  temp                    <-GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "weight0Fisher", ranksOf = "weight0Fisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"W0_",Name[Z],".csv",sep=""))
+})
+
+
+mysampleGO.diff           <- lapply(list(as.character(res.filt.nt3$txID),as.character(res.filt.ngf$txID)),function(Z){
+  geneNames              <- unique(t2g$ensembl_transcript_id)
+  geneList               <- factor(as.integer(geneNames %in% Z))
+  names(geneList)        <- geneNames
+  return(new("topGOdata",description = "Simple session", ontology = "BP",allGenes = geneList, geneSel = Z,nodeSize = 10,annot = annFUN.GO2genes,GO2gene=txID2GO))
+})
+
+
+Name   <- c("up.DEG.NT3.f","up.DEG.NGF.f")
+myenrich            <- lapply(c(1:length(mysampleGO.diff)),function(Z){
+  mysampleGO              <- mysampleGO.diff[[Z]]
+  resultFisher            <- runTest(mysampleGO, algorithm = "classic", statistic = "fisher")
+  resultFisher.weight01   <- runTest(mysampleGO, algorithm = "weight01", statistic = "fisher")
+  temp                    <- GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "classicFisher", ranksOf = "classicFisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"Fisher_",Name[Z],".csv",sep=""))
+  
+  temp                    <-GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "weight0Fisher", ranksOf = "weight0Fisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"W0_",Name[Z],".csv",sep=""))
+})
+```
+
+```{r plot_enrichment,warning=FALSE,fig.width=8, fig.height=3}
+tardir <- "./zenodo/dge/enrichment/"
+mycolbars<- c("#81A4D6","#AF71AF")
+foi    <- list.files(tardir)
+foi    <- foi[-grep(foi,pattern="f_filtered.csv")]
+foi    <- foi[grep(foi,pattern="filtered.csv")]
+foi    <- foi[grep(foi,pattern="W0")]
+par(mfrow=c(1,2),mar=c(4,14,3,3))
+for(i in c(1:length(foi))){
+  dat <- read.csv(paste(tardir,foi[i],sep=""))
+  if(length(grep(pattern="Fisher",foi[i]))==1){
+    temp<- -log10(dat$classicFisher)
+  }
+  else{
+    temp<- -log10(dat$weight0Fisher)
+  }
+  names(temp)<-as.character(dat$Term)
+  temp <- rev(temp)
+  barplot(temp,horiz=TRUE,las=1,cex.names=0.7,col=mycolbars[i])
+  mtext(side=3,line=0,text=gsub(foi[i],pattern="_filtered.csv",repl=""),cex=0.6)
+  mtext(side=1,line=3,text="-log10(P-value)",cex=0.6)
+}
+
+
+```
+
+
+# Transcription Factor Enrichment Analysis
+```{r, compute_enrichment_from_motevooutputs,eval=FALSE}
+mymotifs <- import.gff(con="~/Desktop/DataAnalsyisRiccio/MotEvo/TFBS/hg19toRn5_sites.sorted.gff",format="gff")
+gOver    <- findOverlaps(query=mymotifs,subject = myProm.1000,ignore.strand=TRUE)
+myTF     <- as.character(mcols(mymotifs)$Motif)[queryHits(gOver)]
+myscore  <- as.numeric(mcols(mymotifs)$score)[queryHits(gOver)]
+mytxs    <- as.character(mcols(mytX)$X.transcript_id.)[subjectHits(gOver)]#3737 tX do not have any motifs
+In       <- data.frame(TFBS=myTF,probe_ID=mytxs,post=myscore)
+TFBS     <- unique(myTF)
+Probes   <- unique(mytxs)
+
+Npm                 <- matrix(nrow=length(Probes),ncol=length(TFBS))
+rownames(Npm)       <- Probes
+colnames(Npm)       <- TFBS
+Npm[is.na(Npm)]     <- 0.0
+
+for(i in TFBS){
+  sub         <- In[which(as.character(In$TFBS)==i),]
+  probes      <- levels(as.factor(as.character(sub$probe_ID)))
+  for(j in probes){
+    temp                                <- sub[which(as.character(sub$probe_ID)==j),]
+    Npm[match(j,Probes),match(i,TFBS)]  <- sum(temp$post)
+  }
+}
+
+
+
+#Perform test for each motif
+GetEnrichMotifs <- function(txoi){
+out<- do.call(what=rbind,args=(lapply(c(1:ncol(Npm)),function(IX){
+  ix            <- match(txoi,rownames(Npm))
+  ix            <- ix[!is.na(ix)]
+  n_trial       <- length(ix) 
+  n_sucess_tot  <- sum(Npm[,IX]>0)
+  n_sucess_sub  <- sum(Npm[ix,IX]>0)
+  n_tot         <- nrow(Npm)
+  frac.init     <- n_sucess_tot/n_tot
+  frac.oi       <- n_sucess_sub/n_trial
+  return(c(phyper(n_sucess_sub-1,n_sucess_tot,n_tot-n_sucess_tot,n_trial,lower.tail=FALSE),frac.init,frac.oi,enr=frac.oi/frac.init))
+})))
+  rownames(out)<- colnames(Npm)
+  colnames(out)<- c("PVal","frac.bg","frac.fg","enrichment")
+return(out)}
+
+
+myp.val.NT3                 <- GetEnrichMotifs(as.character(res.nt3$txID))
+colnames(myp.val.NT3)       <- paste("NT3",colnames(myp.val.NT3),sep=".")
+myp.val.NGF                 <- GetEnrichMotifs(as.character(res.ngf$txID))
+colnames(myp.val.NGF)       <- paste("NGF",colnames(myp.val.NGF),sep=".")
+
+myOut                       <- data.frame(myp.val.NT3,myp.val.NGF)
+myOut$TFBS                  <- rownames(myOut)
+#write.csv(myOut,file="./zenodo/dge/enrichment_motifs_hg19.csv")
+```
+
+```{r,plot_relevant_TFs,warning=FALSE,fig.width=8, fig.height=10}
+#PLot heatmaps of the enrichment for the motifs that are significantly enriched
+#enrich_motif <- read.csv("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/TFBS/enrichment_motifs_hg19.csv")
+enrich_motif    <- read.csv("./zenodo/dge/enrichment_motifs_hg19.csv")
+mysel           <- enrich_motif$NT3.PVal<=0.025|enrich_motif$NGF.PVal<=0.025
+mymat           <-  -log10(cbind(enrich_motif$NGF.PVal[mysel],enrich_motif$NT3.PVal[mysel]))
+rownames(mymat) <- gsub(as.character(enrich_motif$X[mysel]),pattern="\\.p2",repl="")
+colnames(mymat) <- c("NGF","NT3")
+
+
+mycols.ups      <- colorpanel(n=51, low="white", mid="yellow",high="red")
+mycols.ups      <- colorpanel(n=51, low="white",mid="lightblue", high="navy")
+mycols.ups      <- colorpanel(n=51, low="white",mid="grey", high="black")
+b.ups           <- c(0,seq(1.3,max(mymat),length=51))
+
+
+heatmap.2(mymat,keysize=1,mar=c(10,10),col=mycols.ups,breaks=b.ups,scale="none",Rowv=TRUE,Colv=FALSE,dendr="none",key=TRUE,symkey=FALSE, density.info="none", trace="none",cexCol=0.8, cexRow=0.8, font.lab=1)
+tempval <- enrich_motif[,c("NT3.frac.bg","NGF.frac.fg","NT3.frac.fg")]
+par(mfrow=c(4,4))
+for(i in which(mysel)){
+  barplot(as.numeric(tempval[i,]),main=gsub(as.character(enrich_motif$X[i]),pattern="\\.p2",repl=""),col=c("grey","#81A4D6","#AF72B0"),las=1,ylab="fraction with motifs",cex.lab=0.6,cex.main=0.6,cex.axis=0.6)
+  mtext(side=3,line=1,text=paste("Pval(Fisher NGF)=",format(enrich_motif$NGF.PVal[i],scientific=TRUE,digit=2)),cex=0.5)
+  mtext(side=3,line=0,text=paste("Pval(Fisher NT3)=",format(enrich_motif$NT3.PVal[i],scientific=TRUE,digit=2)),cex=0.5)
+}
+
+```

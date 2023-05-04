@@ -150,8 +150,44 @@ detect.iso.nt3[which(anno_tot$uniqueID%in%ax.ax)]     <- "ax.ax"
 detect.iso.nt3[which(anno_tot$uniqueID%in%cb.cb)]     <- "cb.cb"
 anno_tot$detect.iso.nt3                              <- detect.iso.nt3
 
+no.txID.ngf <- c(cb=length(unique(anno_tot$txID[anno_tot$NGF.cb.is.expressed.iso])),
+                 axons=length(unique(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso]) ))
+no.iso.ngf  <- c(cb=length(unique(anno_tot$uniqueID[anno_tot$NGF.cb.is.expressed.iso])),
+                 axons=length(unique(anno_tot$uniqueID[anno_tot$NGF.axon.is.expressed.iso]) ))
+
+no.txID.nt3 <- c(cb=length(unique(anno_tot$txID[anno_tot$NT3.cb.is.expressed.iso])),
+                 axons=length(unique(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso]) ))
+no.iso.nt3  <- c(cb=length(unique(anno_tot$uniqueID[anno_tot$NT3.cb.is.expressed.iso])),
+                 axons=length(unique(anno_tot$uniqueID[anno_tot$NT3.axon.is.expressed.iso]) ))
+
+mycols   <- c(rgb(23/255,71/255,120/255),rgb(119/255,192/255,68/255))
+par(mfrow=c(1,4))
+mp<- barplot(no.iso.ngf,las=1,col=mycols,cex.axis=0.7)
+mtext(side=3,line=0,text=no.iso.ngf,cex=0.7,at=mp)
+mtext(side=3,line=1,text="NGF",cex=0.7)
+mtext(side=2,line=3,text="# 3' UTR isoforms",cex=0.7)
+
+mp<- barplot(no.iso.nt3,las=1,col=mycols,cex.axis=0.7)
+mtext(side=3,line=0,text=no.iso.nt3,cex=0.7,at=mp)
+mtext(side=3,line=1,text="NT3",cex=0.7)
+mtext(side=2,line=3,text="# 3' UTR isoforms",cex=0.7)
+
+mp<- barplot(no.txID.ngf,las=1,col=mycols,cex.axis=0.7)
+mtext(side=3,line=0,text=no.txID.ngf,cex=0.7,at=mp)
+mtext(side=3,line=1,text="NGF",cex=0.7)
+mtext(side=2,line=3,text="# txID",cex=0.7)
 
 
+
+mp<- barplot(no.txID.nt3,las=1,col=mycols,cex.axis=0.7)
+mtext(side=3,line=0,text=no.txID.nt3,cex=0.7,at=mp)
+mtext(side=3,line=1,text="NT3",cex=0.7)
+mtext(side=2,line=3,text="# txID",cex=0.7)
+
+```
+
+
+```{r analysis_content_bis,warning=FALSE,fig.width=10, fig.height=3.5}
 #Compare NGF and NT3 in terms of the number of overlapping transcript ID per compartment
 cb.ngf <- unique(anno_tot$txID[anno_tot$NGF.cb.is.expressed.iso])#13174
 cb.nt3 <- unique(anno_tot$txID[anno_tot$NT3.cb.is.expressed.iso])#13324
@@ -184,27 +220,29 @@ comp.ax <- list(intersect(ax.ngf,ax.nt3),setdiff(ax.ngf,ax.nt3),setdiff(ax.nt3,a
 
 
 par(mfrow=c(1,4))
-mp<-barplot(unlist(lapply(comp.cb,length)),las=1,ylim=c(0,14000),col=c("black"),cex.axis=0.7)
+
+mp<-barplot(unlist(lapply(comp.cb.i,length)),las=1,ylim=c(0,30000),col=mycols[1],cex.axis=0.7)
+mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
+mtext(side=3,line=0,text=unlist(lapply(comp.cb.i,length)),at=mp,cex=0.7)
+mtext(side=2,line=2,text="# transcript ID detected in CB",cex=0.7)
+
+mp<-barplot(unlist(lapply(comp.ax.i,length)),las=1,ylim=c(0,30000),col=mycols[2],cex.axis=0.7)
+mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
+mtext(side=3,line=0,text=unlist(lapply(comp.ax.i,length)),at=mp,cex=0.7)
+mtext(side=2,line=2,text="# 3' UTR isoforms detected in axons",cex=0.7)
+
+mp<-barplot(unlist(lapply(comp.cb,length)),las=1,ylim=c(0,14000),col=mycols[1],cex.axis=0.7)
 mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
 mtext(side=3,line=0,text=unlist(lapply(comp.cb,length)),at=mp,cex=0.7)
 mtext(side=2,line=2,text="# transcript ID detected in CB",cex=0.7)
 
-mp<-barplot(unlist(lapply(comp.ax,length)),las=1,ylim=c(0,14000),col=c("black"),cex.axis=0.7)
+mp<-barplot(unlist(lapply(comp.ax,length)),las=1,ylim=c(0,14000),col=mycols[2],cex.axis=0.7)
 mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
 mtext(side=3,line=0,text=unlist(lapply(comp.ax,length)),at=mp,cex=0.7)
 mtext(side=2,line=2,text="# transcript ID detected in axons",cex=0.7)
 
 
 
-mp<-barplot(unlist(lapply(comp.cb.i,length)),las=1,ylim=c(0,30000),col=c("black"),cex.axis=0.7)
-mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
-mtext(side=3,line=0,text=unlist(lapply(comp.cb.i,length)),at=mp,cex=0.7)
-mtext(side=2,line=2,text="# transcript ID detected in CB",cex=0.7)
-
-mp<-barplot(unlist(lapply(comp.ax.i,length)),las=1,ylim=c(0,30000),col=c("black"),cex.axis=0.7)
-mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
-mtext(side=3,line=0,text=unlist(lapply(comp.ax.i,length)),at=mp,cex=0.7)
-mtext(side=2,line=2,text="# 3' UTR isoforms detected in axons",cex=0.7)
 
 ```
 
@@ -249,3 +287,149 @@ lines(myx,frac_detected_ngf,las=1,col=colsNGF[1])
 points(myx,frac_detected_nt3,las=1,col=colsNT3[1],pch=19,cex=0.7)
 lines(myx,frac_detected_nt3,las=1,col=colsNT3[1])
 ```
+
+
+# Characterise compartment-specific 3' UTR characteristics
+As shown below, and as previously reported in Andreassi et al. (Cell Reports, 2021), the transcripts ID that localise to the axons exhibit a significant higher diversity in 3' UTR isoforms and significant longer 3' UTR length. 
+```{r analysis_3UTR_length,warning=FALSE,fig.width=10, fig.height=4}
+
+#Extract the txID of all transcripts detected in axons irrespective of their isoform
+Axons.txID.ngf <- unique(as.character(anno_tot$txID)[anno_tot$NGF.axon.is.expressed.iso])
+Axons.txID.nt3 <- unique(as.character(anno_tot$txID)[anno_tot$NT3.axon.is.expressed.iso])
+
+#Extract the txID of all transcripts detected in CB irrespective of their isoform
+CB.txID.ngf    <- unique(as.character(anno_tot$txID)[anno_tot$NGF.cb.is.expressed.iso])
+CB.txID.nt3    <- unique(as.character(anno_tot$txID)[anno_tot$NT3.cb.is.expressed.iso])
+
+#Extract the isoform ID of all transcripts detected in axons irrespective of their isoform
+Axons.iso.ngf  <- unique(as.character(anno_tot$uniqueID)[anno_tot$NGF.axon.is.expressed.iso])
+Axons.iso.nt3  <- unique(as.character(anno_tot$uniqueID)[anno_tot$NT3.axon.is.expressed.iso])
+
+#Extract the isoform ID of all transcripts detected in CB irrespective of their isoform
+CB.iso.ngf     <- unique(as.character(anno_tot$uniqueID)[anno_tot$NGF.cb.is.expressed.iso])
+CB.iso.nt3     <- unique(as.character(anno_tot$uniqueID)[anno_tot$NT3.cb.is.expressed.iso])
+
+
+#Extract the list of these and their differences
+L1 <- list(
+  cb.only.gf=setdiff(CB.txID.ngf,Axons.txID.ngf),
+  cb.axons.gf=intersect(CB.txID.ngf,Axons.txID.ngf),
+  axon.only.gf=setdiff(Axons.txID.ngf,CB.txID.ngf),
+  cb.only.t3=setdiff(CB.txID.nt3,Axons.txID.nt3),
+  cb.axons.t3=intersect(CB.txID.nt3,Axons.txID.nt3),
+  axon.only.t3=setdiff(Axons.txID.nt3,CB.txID.nt3)
+)
+
+L2 <- list(
+  cb.only.gf=setdiff(CB.iso.ngf,Axons.iso.ngf),
+  cb.axons.gf=intersect(CB.iso.ngf,Axons.iso.ngf),
+  axon.only.gf=setdiff(Axons.iso.ngf,CB.iso.ngf),
+  cb.only.t3=setdiff(CB.iso.nt3,Axons.iso.nt3),
+  cb.axons.t3=intersect(CB.iso.nt3,Axons.iso.nt3),
+  axon.only.t3=setdiff(Axons.iso.nt3,CB.iso.nt3)
+)
+
+
+#Extract maximum 3' UTR length of the txID detected in either axons or CV
+maxL.ngf        <- tapply(anno_tot$newL[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso])),FUN=max)
+maxL.nt3        <- tapply(anno_tot$newL[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso])),FUN=max)
+#Extract initi 3' UTR length of the txID detected in either axons or CV
+initL.ngf       <- tapply(anno_tot$initL[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso])),FUN=function(X)return(X[1]))                     
+initL.nt3       <- tapply(anno_tot$initL[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso])),FUN=function(X)return(X[1]))
+
+no.iso.ngf      <- tapply(anno_tot$initL[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NGF.axon.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso])),FUN=function(X)return(length(X))) 
+no.iso.nt3      <- tapply(anno_tot$initL[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso],INDEX=factor(as.character(anno_tot$txID[anno_tot$NT3.axon.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso])),FUN=function(X)return(length(X))) 
+
+anno_tot$maxL.ngf  <- maxL.ngf[match(anno_tot$txID,names(maxL.ngf))]
+anno_tot$initL.ngf <- initL.ngf[match(anno_tot$txID,names(initL.ngf))]
+anno_tot$no.iso.ngf<- no.iso.ngf[match(anno_tot$txID,names(no.iso.ngf))]
+
+anno_tot$maxL.nt3  <- maxL.nt3[match(anno_tot$txID,names(maxL.nt3))]
+anno_tot$initL.nt3 <- initL.nt3[match(anno_tot$txID,names(initL.nt3))]
+anno_tot$no.iso.nt3<- no.iso.nt3[match(anno_tot$txID,names(no.iso.nt3))]
+
+
+
+with.multiple.ngf <- unlist(lapply(L1,function(Z)return(sum(no.iso.ngf[match(Z,names(no.iso.ngf))]>1)/length(Z))))[-c(3:6)]
+with.multiple.nt3 <- unlist(lapply(L1,function(Z)return(sum(no.iso.nt3[match(Z,names(no.iso.nt3))]>1)/length(Z))))[-c(1,2,3,6)]
+
+
+distr.no.iso.ngf  <- rbind(
+  as.vector(table(no.iso.ngf[match(L1[[1]],names(no.iso.ngf))]))[c(1:7)]/length(L1[[1]]),
+  (as.vector(table(no.iso.ngf[match(L1[[2]],names(no.iso.ngf))]))[c(1:7)])/length(L1[[2]]))
+
+distr.no.iso.nt3  <- rbind(
+  as.vector(table(no.iso.nt3[match(L1[[4]],names(no.iso.nt3))]))[c(1:7)]/length(L1[[4]]),
+  (as.vector(table(no.iso.nt3[match(L1[[5]],names(no.iso.nt3))]))[c(1:7)])/length(L1[[5]]))
+
+utrL.ngf          <- list(
+  Ensembl=initL.ngf[match(unique(c(Axons.txID.ngf,CB.txID.ngf)),names(initL.ngf))],
+  cb.only=maxL.ngf[match(L1[[1]],names(maxL.ngf))],
+  axons=maxL.ngf[match(L1[[2]],names(maxL.ngf))]
+)
+
+utrL.nt3          <- list(
+  Ensembl=initL.nt3[match(unique(c(Axons.txID.nt3,CB.txID.nt3)),names(initL.nt3))],
+  cb.only=maxL.nt3[match(L1[[4]],names(maxL.nt3))],
+  axons=maxL.nt3[match(L1[[5]],names(maxL.nt3))]
+)
+
+par(mfrow=c(1,4),mar=c(3,4,3,3))
+mycols <- c(rgb(254/255,218/255,0),rgb(150/255,150/255,150/255),"black")
+#mp<- barplot(unlist(lapply(L1,length)),las=1,col=mycols,frame=F)
+#mtext(side=3,line=0,text=unlist(lapply(L1,length)),at=mp,cex=0.6)
+#mtext(side=2,line=3,text="no.txID")
+
+#mp<- barplot(unlist(lapply(L2,length)),las=1,col=mycols,frame=F)
+#mtext(side=3,line=0,text=unlist(lapply(L2,length)),at=mp,cex=0.5)
+#mtext(side=2,line=3,text="no.3' UTR isoforms")
+
+#Statistical test to investigate whether the fraction of txID with mult iso is different between CB and AX
+Is.axons    <- union(as.character(anno_tot$txID)[anno_tot$NGF.axon.is.expressed.iso],
+                     as.character(anno_tot$txID)[anno_tot$NGF.cb.is.expressed.iso])%in%L1[[2]]
+Is.multiple <- anno_tot$no.iso.ngf[match(union(as.character(anno_tot$txID)[anno_tot$NGF.axon.is.expressed.iso],
+                                               as.character(anno_tot$txID)[anno_tot$NGF.cb.is.expressed.iso]),anno_tot$txID)]>1
+
+pval_NGF <- format(fisher.test(Is.axons,Is.multiple)$p.value,scientific=TRUE,digit=1)
+
+
+Is.axons    <- union(as.character(anno_tot$txID)[anno_tot$NT3.axon.is.expressed.iso],
+                     as.character(anno_tot$txID)[anno_tot$NT3.cb.is.expressed.iso])%in%L1[[4]]
+Is.multiple <- anno_tot$no.iso.nt3[match(union(as.character(anno_tot$txID)[anno_tot$NT3.axon.is.expressed.iso],
+                                               as.character(anno_tot$txID)[anno_tot$NT3.cb.is.expressed.iso]),anno_tot$txID)]>1
+pval_NT3 <- format(fisher.test(Is.axons,Is.multiple)$p.value,scientific=TRUE,digit=1)
+
+
+mp<-barplot(cbind(with.multiple.ngf*100,with.multiple.nt3*100),col=mycols[c(1,2)],las=1,frame=F,beside=T,ylim=c(0,100))
+mtext(side=2,line=3,text="fraction of txID with multiple iso",cex=0.7)
+mtext(side=1,line=0,at=mp,text=c("NGF","NT3"),cex=0.7)
+legend("top",ncol=2,pch=15,col=mycols[c(1,2)],leg=c("CB","axons"),cex=0.7)
+mtext(side=3,line=0,text=c("P(Fisher):",pval_NGF,pval_NT3),at=c(0,2,5),cex=0.7)
+arrows(x0=1.0,y0=80,x1=3,y1=80,length = 0)
+arrows(x0=4,y0=80,x1=6,y1=80,length = 0)
+
+barplot(distr.no.iso.ngf*100,beside=T,col=mycols[c(1,2)],las=1,,frame=F,main="NGF")
+mtext(side=2,line=3,text="fraction of txID with multiple iso",cex=0.7)
+barplot(distr.no.iso.nt3*100,beside=T,col=mycols[c(1,2)],las=1,,frame=F,main="NT3")
+mtext(side=2,line=3,text="fraction of txID with multiple iso",cex=0.7)
+
+
+#boxplot(utrL.ngf,outline=F,col=c("white",mycols[c(1,2)]),las=1,frame=F,main="ngf")
+#mtext(side=3,line=0,text=unlist(lapply(utrL.ngf,length)),at=c(1,2,3),cex=0.5)
+
+#boxplot(utrL.nt3,outline=F,col=c("white",mycols[c(1,2)]),las=1,frame=F,main="nt3")
+#mtext(side=3,line=0,text=unlist(lapply(utrL.nt3,length)),at=c(1,2,3),cex=0.5)
+
+boxplot(c(utrL.nt3,utrL.ngf),outline=F,col=c("white",mycols[c(1,2)]),las=1,frame=F,xaxt="n",ylim=c(0,10000))
+mtext(side=3,line=2,text=c(unlist(lapply(utrL.ngf,length)),unlist(lapply(utrL.nt3,length))),at=c(1:6),cex=0.5)
+mtext(side=3,line=0,at=c(-1,2.5,5.5),text=c("P(WT):",format(wilcox.test(utrL.ngf[[2]],utrL.ngf[[3]], paired=F)$p.value,scientific=TRUE,digit=1),format(wilcox.test(utrL.nt3[[2]],utrL.nt3[[3]], paired=F)$p.value,scientific=TRUE,digit=1)),cex=0.6)
+arrows(x0=1.8,y0=10000,x1=3.4,y1=10000,length = 0)
+arrows(x0=4.8,y0=10000,x1=6.4,y1=10000,length = 0)
+mtext(side=2,line=3,text="3' UTR length [nt]",cex=0.7)
+mtext(side=1,line=0,at=c(1:6),text=rep(c("Ens","CB","AX"),2),cex=0.7)
+mtext(side=1,line=1,at=c(2,5),text=c("NGF","NT3"),cex=0.7)
+
+
+```
+
+# Biological pathway enrichment analysis
