@@ -34,16 +34,21 @@ Bioconductor version 3.16 (BiocManager 1.30.19), R 4.2.2 (2022-10-31)
 3’ end sequencing of RNA isolated from axons and cell bodies of sympathetic neurons exposed to either Nerve Growth factor (NGF) or Neurotrophin 3 (NT3). 
 Source code related to the manuscript **The RNA Binding proteome of axonal mRNAs in sympathetic neurons**, Luisier et al. (2023).
 
-## Overview of the analysis
+## Summary of the analysis and results
 
 ### 1. Overview of the data
 The analysis of the read count and samples is presented [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/1_overview_data.html).
 
-### 1. Compartment-specific analysis
+### 2. Differential gene expression analysis
+The analysis of the differential gene expression analysis between NT3 and NGF conditions together with transcription factor analysis can be found [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/DGE_cell_body.html).
+
+
+### 3. Differential Alternative Polyadenyation between NGF and NT3
+The analysis and related results of differential APA between NGF and NT3 is presented [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/Differential_APA_CB.html).
+
+### 4. Axonal versus cell body compartments
 The analysis of the compartment-specific mRNA pools and factors underlying axonal localisation is presented [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/Analysis_compartment.html).
 
-### 1. Differential gene expression analysis
-The analysis of the differential gene expression analysis between NT3 and NGF conditions together with transcription factor analysis can be found [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/DGE_cell_body.html).
 
 
 
