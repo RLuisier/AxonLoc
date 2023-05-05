@@ -1,0 +1,484 @@
+---
+title: "Differential APA in cell body"
+author: "Idiap Research Institute"
+date: "February 2023"
+output:
+  html_document:
+    theme: paper
+#paper readable
+    highlight: monochrome
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+#    toc_float: true
+    number_sections: true
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache =TRUE)
+knitr::opts_chunk$set(fig.width=16, fig.height=10, figure.align = "center") 
+library(ggplot2) # devtools::install_github('hadley/ggplot2')
+library(RColorBrewer)
+library(wesanderson)
+library(knitr)
+library(mclust)
+#library(limma)
+require(gplots)
+#library(lme4)
+#library(nlme)
+#source("http://bioconductor.org/biocLite.R")
+#require("GO.db")
+#require("limma")
+#require("topGO")
+#require("biomaRt")
+#require("org.Rn.eg.db")
+#library(grDevices)
+library(Rsamtools)
+library(IRanges)
+library(GenomicRanges)
+library(rtracklayer)
+library(geneplotter)
+library("ape")
+require("multtest")
+require("mclust")
+require("edgeR")
+library(colortools)
+rm(list = ls())
+```
+
+# Load the data {.tabset}
+3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
+
+
+```{r load_data_load_scripts,warning=FALSE,fig.width=8, fig.height=4}
+load("./data/myfiles.RData")#"anno_tot","myUTR"
+#load("~/Desktop/DataAnalsyisRiccio/NGFvsNT3/files_analysis_Sep2017.RData")#Version September 2017 (remove 10% antisense)32632 3' UTR isoforms
+#myUTR        <- import.gff("./data/myUTR.gtf",format="gtf")
+#anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
+source("./scripts/nested_fun_differential_PAS.R")
+source("./scripts/nested_fun_nt3_ngf.R")
+```
+
+# Identification of APA events between NGF and NT3
+```{r identify_APA_events_partA,eval=TRUE,warning=FALSE,fig.width=8, fig.height=4}
+# A. Remove those transcript ID which have only one isoforms
+anno_tot     <- anno_tot[anno_tot$NGF.cb.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso,]
+temp         <- as.data.frame(table(as.character(anno_tot$txID)))
+no.iso       <- temp[match(anno_tot$txID,as.character(temp[,1])),2]
+anno_tot     <- anno_tot[anno_tot$no.iso>1,]#24061 rows   
+names(myUTR) <- myUTR$ID
+myUTR        <- myUTR[match(anno_tot$uniqueID,names(myUTR)),]
+
+# B. Check that the closest neighbour is not within 300 nt
+tempL                     <- anno_tot$newL
+names(tempL)              <- anno_tot$uniqueID
+tempG                     <- as.factor(as.character(anno_tot$txID))
+myord                     <- tapply(tempL,INDEX=tempG,function(x)return(cbind(names(x)[sort(as.numeric(as.character(x)),index.return=T,decreasing=F)$ix],c(1:length(x)))))
+test                      <- do.call(what=rbind,args=myord)
+iso_ordered               <- as.numeric(test[match(anno_tot$uniqueID,test[,1]),2])
+#nextIsoform
+tempid                    <- paste(anno_tot$txID,iso_ordered,sep=".")
+next.iso                  <- paste(anno_tot$txID,(as.numeric(as.character(iso_ordered))+1),sep=".")
+nextID                    <- anno_tot$uniqueID[match(next.iso,tempid)]
+#distTonext
+distonext                 <- rep(NA,nrow(anno_tot))
+sel                       <- !is.na(nextID)
+d1                        <- as.numeric(as.character(anno_tot$newL))[sel]
+d2                        <- as.numeric(as.character(anno_tot$newL))[match(nextID[sel],anno_tot$uniqueID)]
+distonext[sel]            <- d2-d1
+#Fproxi
+Fproxi                    <- which(distonext<300)#none; ok what expected
+
+# C. Remake ordering and imID
+tempL                     <- anno_tot$newL
+names(tempL)              <- anno_tot$uniqueID
+tempG                     <- as.factor(as.character(anno_tot$txID))
+myord                     <- tapply(tempL,INDEX=tempG,function(x)return(cbind(names(x)[sort(as.numeric(as.character(x)),index.return=T,decreasing=F)$ix],c(1:length(x)))))
+test                      <- do.call(what=rbind,args=myord)
+test                      <- test[match(anno_tot$uniqueID,test[,1]),]
+temp                      <- as.data.frame(table(as.character(anno_tot$txID)))
+no.iso                    <- temp[match(anno_tot$txID,as.character(temp[,1])),2]
+anno_tot$no.iso           <- no.iso
+anno_tot$iso_ordered      <- test[,2]
+tempL                     <- as.character(anno_tot$iso_ordered)
+names(tempL)              <- as.character(anno_tot$uniqueID)
+imID1                     <- tapply(tempL,INDEX=as.factor(as.character(anno_tot$txID)),function(x)return(names(x)[x=="1"]))
+imIDp                     <- as.character(imID1[match(anno_tot$txID,names(imID1))])
+anno_tot$imIDp            <- imIDp
+
+#D. Select only the cell body compartment
+coloi                    <- c("NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
+data.con.cb              <- anno_tot[,match(coloi,colnames(anno_tot))]
+row_info                 <- anno_tot
+data.sum                 <- apply(data.con.cb,2,function(Z)return(tapply(Z,INDEX=factor(as.character(row_info$txID)),FUN=sum)))
+row_info                 <- row_info[match(rownames(data.sum),row_info$txID),]
+data.sum.log2            <- log2(1+data.sum)
+
+
+
+#E. Differential 3' UTR expression analysis
+count.matrix          <- anno_tot[,coloi]
+group                 <- factor(c("NGF","NGF","NT3","NT3"),levels=c("NGF","NT3"))
+my.dgelist            <- DGEList(counts = count.matrix,group = group)
+my.dgelist            <- calcNormFactors(my.dgelist)
+my.dgelist            <- estimateCommonDisp(my.dgelist)
+my.dgelist            <- estimateTagwiseDisp(my.dgelist)
+bcv_samples           <- round(sqrt(my.dgelist$common.disp),digits=2)
+TD                    <- group
+design                <- model.matrix(~0+TD)
+colnames(design)      <- levels(TD)
+fit                   <- glmFit(my.dgelist,design)
+et                    <- exactTest(my.dgelist,pair=c("NGF","NT3"))#Will compare NT3 versus NGF
+detags                <- rownames(topTags(et)$table)
+de                    <- decideTestsDGE(et, p=0.1, adjust="BH")
+detags                <- rownames(my.dgelist)[as.logical(de)]
+res.iso               <- et$table
+res.iso               <- data.frame(res.iso,cpm(my.dgelist)[, order(my.dgelist$samples$group)])
+res.iso$GS            <- as.character(anno_tot$geneSymbol)[match(as.character(rownames(res.iso)),as.character(anno_tot$uniqueID))]
+```
+
+```{r identify_APA_events_partB,eval=TRUE,warning=FALSE,fig.width=8, fig.height=4}
+
+# D. Get the selection on which to focus for the analysis
+# At least one of the pair (distal or proximal) must be detected in CB of NGF
+sela11                 <- (anno_tot$NGF.cb.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso[match(anno_tot$imIDp,anno_tot$uniqueID)])
+# At least one of the  pair (distal or proximal) must be detected in CB of NT3
+sela21                 <- (anno_tot$NT3.cb.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso[match(anno_tot$imIDp,anno_tot$uniqueID)])
+# Remove all the isoform I0
+sela3                  <- anno_tot$uniqueID!=anno_tot$imIDp
+#Proximal is expressed in at least one of the 2 CB samples 
+sela41                 <- (anno_tot$NGF.cb.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso)[match(anno_tot$imIDp,anno_tot$uniqueID)]
+#Distal is expressed in at least one of the 2 CB samples
+sela51                 <- (anno_tot$NGF.cb.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso)
+sela1                  <- sela11&sela21&sela3&sela41&sela51
+subanno1               <- anno_tot[sela1,]#14198 pairs for 9780 txID
+
+
+# E.    Proximal to distal site usage AND fisher test
+coloi                <- c("NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
+ix1                  <- c(1:nrow(anno_tot))
+ix2                  <- match(as.character(anno_tot$imIDp),as.character(anno_tot$uniqueID))
+
+#E.1 RUD
+mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
+for(i in c(1:ncol(mydat))){mydat[,i]<-log2(1+mydat[,i])}
+rownames(mydat)      <- anno_tot$uniqueID
+myProximal           <- apply(mydat,2,function(x)return(x[ix2]))
+myDistal             <- apply(mydat,2,function(x)return(x[ix1]))
+rownames(myProximal) <-rownames(myDistal)<-anno_tot$uniqueID[ix1]
+RUD                  <- do.call(lapply(c(1:4),function(x)return(myProximal[,x]-myDistal[,x])),what=cbind)
+rownames(RUD)        <- anno_tot$uniqueID[ix1]
+colnames(RUD)        <- unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,pattern="\\.raw",repl=""))))
+mRUD                  <- t(apply(RUD,1,function(x)return(tapply(x,INDEX=factor(c("NGF.cb","NGF.cb","NT3.cb","NT3.cb")),FUN=mean))))
+dRUD                  <- mRUD[,1]-mRUD[,2]#NGF:NT3
+
+#E.2 PUD
+mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
+ix.distal            <- c(1:nrow(anno_tot))
+ix.proximal          <- match(as.character(anno_tot$imIDp),as.character(anno_tot$uniqueID))
+psi                  <- mydat
+for(i in c(1:ncol(psi))){
+  psi[,i]                                                              <- mydat[ix.proximal,i]/(mydat[ix.distal,i]+mydat[ix.proximal,i])
+  psi[is.na(psi[,i]),i]<-0
+}
+PUD                 <- psi
+rownames(PUD)       <- anno_tot$uniqueID
+colnames(PUD)       <- unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,pattern="\\.raw.corrected",repl=""))))
+mPUD                <- t(apply(PUD,1,function(x)return(tapply(x,INDEX=factor(c("NGF.cb","NGF.cb","NT3.cb","NT3.cb")),FUN=mean))))
+dPUD                <- mPUD[,1]-mPUD[,2]#NGF:NT3
+
+
+#E.3 Sum then PUD
+mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
+grp                 <- factor(unlist(lapply(FUN=function(Z)return(gsub(Z,pattern="\\.2\\.raw.corrected",repl="")),unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,pattern="\\.1\\.raw.corrected",repl="")))))),levels=c("NGF.cb","NT3.cb")) 
+mydat                <- t(apply(mydat,1,function(Z)return(tapply(Z,INDEX=grp,FUN=sum))))
+ix.distal            <- c(1:nrow(anno_tot))
+ix.proximal          <- match(as.character(anno_tot$imIDp),as.character(anno_tot$uniqueID))
+psi                  <- mydat
+for(i in c(1:ncol(psi))){
+  psi[,i]                                                              <- mydat[ix.proximal,i]/(mydat[ix.distal,i]+mydat[ix.proximal,i])
+  psi[is.na(psi[,i]),i]<-0
+}
+SUD                 <- psi
+rownames(SUD)       <- anno_tot$uniqueID
+colnames(SUD)       <- unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,pattern="\\.raw",repl=""))))
+dSUD                <- SUD[,1]-SUD[,2]
+
+
+
+#F. P-value from Fisher count test
+mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
+grp                  <- factor(unlist(lapply(FUN=function(Z)return(gsub(Z,pattern="\\.2\\.raw\\.corrected",repl="")),unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,pattern="\\.1\\.raw\\.corrected",repl="")))))),levels=c("NGF.cb","NT3.cb")) 
+mydat                <- t(apply(mydat,1,function(Z)return(tapply(Z,INDEX=grp,FUN=sum))))
+
+```
+
+```{r identify_APA_events_partC,eval=TRUE,warning=FALSE,fig.width=8, fig.height=4}
+
+test.apa <- function(ix.proximal=ix1[1],ix.distal=ix2[1]){
+  return(fisher.test(round(cbind(mydat[ix.proximal,],mydat[ix.distal,])))$p.value)
+}
+ix1                  <- c(1:nrow(anno_tot))
+ix2                  <- match(as.character(anno_tot$imIDp),as.character(anno_tot$uniqueID))
+fisherRUD            <- do.call(what=rbind,args=lapply(c(1:nrow(mydat)),function(x)return(test.apa(ix.proximal=ix1[x],ix.distal=ix2[x]))))
+padjust.1            <- p.adjust(fisherRUD[sela1],method="fdr")
+
+ix.distal            <- c(1:nrow(anno_tot))
+ix.proximal          <- match(as.character(anno_tot$imIDp),as.character(anno_tot$uniqueID))
+
+
+mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
+grp                  <- factor(unlist(lapply(FUN=function(Z)return(gsub(Z,pattern="\\.2\\.raw\\.corrected",repl="")),unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,pattern="\\.1\\.raw\\.corrected",repl="")))))),levels=c("NGF.cb","NT3.cb")) 
+mydat                <- t(apply(mydat,1,function(Z)return(tapply(Z,INDEX=grp,FUN=mean))))
+
+myE.proximal         <- mydat[ix.proximal,]
+colnames(myE.proximal)<-paste(colnames(myE.proximal),".proximal",sep="")
+myE.distal           <- mydat[ix.distal,]
+colnames(myE.distal)<-paste(colnames(myE.distal),".distal",sep="")
+myE                 <- cbind(myE.proximal[,1],myE.distal[,1],myE.proximal[,2],myE.distal[,2])
+colnames(myE)       <- c(colnames(myE.proximal)[1],colnames(myE.distal)[1],colnames(myE.proximal)[2],colnames(myE.distal)[2])                      
+colnames(mPUD)      <- paste("PUD",colnames(mPUD),sep=".")
+
+myOut               <- data.frame(anno_tot[,c("txID","geneSymbol","imIDp","uniqueID")],dPUD,mPUD,dSUD,SUD,myE)
+colnames(myOut)[c(3,4)]<-c("id.proximal","id.distal")
+myOut.sub           <- myOut[sela1,]
+```
+
+```{r identify_APA_events_partD,eval=TRUE,warning=FALSE,fig.width=8, fig.height=4}
+
+#G. Now identify the differentially used 3' UTR (changes in proximal and distal site usage between axons and CB)
+id.proxi             <-  anno_tot$imIDp[match(names(dRUD)[sela1],anno_tot$uniqueID)]
+seld1                <-  anno_tot$NGF.cb.is.expressed.iso[match(id.proxi,anno_tot$uniqueID)]#Proximal is expressed in NGF
+seld2                <-  anno_tot$NGF.cb.is.expressed.iso[match(names(dRUD)[sela1],anno_tot$uniqueID)]#Distal is expressed in NGF
+seld3                <-  anno_tot$NT3.cb.is.expressed.iso[match(id.proxi,anno_tot$uniqueID)]#Proximal is expressed in NT3
+seld4                <-  anno_tot$NT3.cb.is.expressed.iso[match(names(dRUD)[sela1],anno_tot$uniqueID)]#Distal is expressed in Nt3
+sele1                <-  (dPUD>0.2&dSUD>0.2)[sela1]
+sele2                <-  (dPUD<(-0.2)&dSUD<(-0.2))[sela1]
+self1                <-  dRUD[sela1]<(-1)
+self2                <-  dRUD[sela1]>(1)
+# Significant P-value of difference
+selc                 <-  padjust.1<0.01&fisherRUD[sela1]<0.01
+
+mRUD                 <- data.frame(mRUD)
+Lim1                 <- 0.2
+Lim2                 <- 0.8
+
+selRUD1             <- list()
+IX=1
+selRUD1[[IX]]       <- selc&self1&seld2&seld3#793(426); proximal shift in NT3 compared to NGF so (1) proximal is expressed in NT3 and (2) distal is expressed in NGF
+IX=IX+1
+selRUD1[[IX]]       <- selc&self2&seld1&seld4#265; proximal shift in NGF compared to NT3 so proximal is expressed in NT3 and distal is expressed in NGF
+IX=IX+1
+selRUD1[[IX]]       <- selc&self1&seld2&seld3&sele2#73-proximal shift in NT3 so proximal is expressed in CB
+IX=IX+1
+selRUD1[[IX]]       <- selc&self2&seld1&seld4&sele1#48-proximal shift in NGF so distal expressed in CB
+
+myfrac<- 0.3
+myOut.sub      <- myOut[match(as.character(anno_tot$uniqueID[sela1]),myOut$id.distal),]
+more.dist.NGF  <- apply(myOut.sub[,c("NT3.cb.distal","NGF.cb.distal")],1,diff)>myfrac*apply(myOut.sub[,c("NT3.cb.distal","NGF.cb.distal")],1,max)
+more.proxi.NGF <- apply(myOut.sub[,c("NT3.cb.proximal","NGF.cb.proximal")],1,diff)>myfrac*apply(myOut.sub[,c("NT3.cb.proximal","NGF.cb.proximal")],1,max)
+more.dist.NT3  <- apply(myOut.sub[,c("NGF.cb.distal","NT3.cb.distal")],1,diff)>myfrac*apply(myOut.sub[,c("NT3.cb.distal","NGF.cb.distal")],1,max)
+more.proxi.NT3 <- apply(myOut.sub[,c("NGF.cb.proximal","NT3.cb.proximal")],1,diff)>myfrac*apply(myOut.sub[,c("NT3.cb.proximal","NGF.cb.proximal")],1,max)
+
+IX=IX+1
+selRUD1[[IX]]       <- selc&self1&seld2&seld3&sele2&more.dist.NGF#proximal shift in NT3 with more of the distal in NGF; ENSRNOT00000025070.2 ENSRNOT00000065289.8
+IX=IX+1
+selRUD1[[IX]]       <- selc&self1&seld2&seld3&sele2&more.proxi.NT3#proximal shift in NT3 with more of the proximal in NT3: Grem1 (angiogenesis)
+IX=IX+1
+selRUD1[[IX]]       <- selc&self2&seld1&seld4&sele1&more.dist.NT3#48-proximal shift in NGF with more distal in NT3
+IX=IX+1
+selRUD1[[IX]]       <- selc&self2&seld1&seld4&sele1&more.proxi.NGF#48-proximal shift in NGF with more proximal in NGF
+
+meanE               <- apply(res.iso[,grep(pattern="\\.raw.corrected",colnames(res.iso))]>4,1,sum)>2
+
+IX=IX+1
+ix.oi               <- match(myOut.sub$id.distal,rownames(res.iso))
+selRUD1[[IX]]       <- selc&self1&seld2&sele2&res.iso$logFC[ix.oi]<(-1)&res.iso$PValue[ix.oi]<0.05#&meanE[ix.oi]#distal NGF
+
+IX=IX+1
+ix.oi               <- match(myOut.sub$id.proximal,rownames(res.iso))
+selRUD1[[IX]]       <- selc&self1&seld3&sele2&res.iso$logFC[ix.oi]>(1)&res.iso$PValue[ix.oi]<0.05#&meanE[ix.oi]#proximal NT3
+
+IX=IX+1
+ix.oi               <- match(myOut.sub$id.distal,rownames(res.iso))
+selRUD1[[IX]]       <- selc&self2&seld4&sele1&res.iso$logFC[ix.oi]>(1)&res.iso$PValue[ix.oi]<0.05#&meanE[ix.oi]#distal NT3
+
+IX=IX+1
+ix.oi               <- match(myOut.sub$id.proximal,rownames(res.iso))
+selRUD1[[IX]]       <- selc&self2&seld1&sele1&res.iso$logFC[ix.oi]<(-1)&res.iso$PValue[ix.oi]<0.05#&meanE[ix.oi]#proximal NGF
+
+
+sel.uniqueID.cb  <- lapply(selRUD1,function(Z)return(as.character(anno_tot$uniqueID[sela1])[Z]))
+sel.txID.cb      <- lapply(selRUD1,function(Z)return(unique(as.character(anno_tot$txID[sela1])[Z])))
+sel.gs.cb        <- lapply(selRUD1,function(Z)return(unique(as.character(anno_tot$geneSymbol[sela1])[Z])))
+res.sel.cb       <- lapply(sel.uniqueID.cb,function(Z)return(myOut[match(Z,myOut$id.distal),]))
+
+
+#Test if similar results as in paper
+#sum(as.character(res.sel.cb[[5]]$id.distal)!=as.character(read.csv("./zenodo/apa/dist_NGF.csv")$id.distal))
+#sum(as.character(res.sel.cb[[6]]$id.distal)!=as.character(read.csv("./zenodo/apa/proxi_NT3.csv")$id.distal))
+#sum(as.character(res.sel.cb[[7]]$id.distal)!=as.character(read.csv("./zenodo/apa/dist_NT3.csv")$id.distal))
+#sum(as.character(res.sel.cb[[8]]$id.distal)!=as.character(read.csv("./zenodo/apa/proxi_NGF.csv")$id.distal))
+
+#write.csv(res.sel.cb[[5]],"./zenodo/apa/dist_NGF.csv")
+#write.csv(res.sel.cb[[6]],"./zenodo/apa/proxi_NT3.csv")
+#write.csv(res.sel.cb[[7]],"./zenodo/apa/dist_NT3.csv")
+#write.csv(res.sel.cb[[8]],"./zenodo/apa/proxi_NGF.csv")
+```
+
+```{r identify_APA_events_partE,eval=TRUE,warning=FALSE,fig.width=8, fig.height=6}
+#Import filtered events
+res.filt.ngf <- list(read.csv("./zenodo/apa/dist_NT3_filtered_stringent.csv"),
+                     read.csv("./zenodo/apa/proxi_NGF_filtered_stringent.csv"))
+
+res.filt.nt3 <- list(read.csv("./zenodo/apa/dist_NGF_filtered_stringent.csv"),
+                     read.csv("./zenodo/apa/proxi_NT3_filtered_stringent.csv"))
+
+
+#
+#Extract full list of distal-to-proximal events in NGF
+#
+distal_to_proxi_ngf             <- res.filt.ngf[[1]]
+distal_to_proxi_ngf             <- rbind(distal_to_proxi_ngf,res.filt.ngf[[2]][,match(colnames(distal_to_proxi_ngf),colnames(res.filt.ngf[[2]]))])
+distal_to_proxi_ngf             <- distal_to_proxi_ngf[!duplicated(distal_to_proxi_ngf$id.proximal),]
+distal_to_proxi_ngf$promdistNT3 <- ifelse(distal_to_proxi_ngf$id.distal%in%res.filt.ngf[[1]]$id.distal,TRUE,FALSE)
+distal_to_proxi_ngf$promproxNGF <- ifelse(distal_to_proxi_ngf$id.distal%in%res.filt.ngf[[2]]$id.distal,TRUE,FALSE)
+#write.csv(distal_to_proxi_ngf,file="./zenodo/apa/distal_to_proxi_ngf.csv")
+#Check
+#sum(as.character(distal_to_proxi_ngf$id.distal)!=as.character(read.csv("./zenodo/apa/distal_to_proxi_ngf.csv")$id.distal))
+
+
+#
+#Extract full list of distal-to-proximal events in NT3
+#
+distal_to_proxi_nt3             <- res.filt.nt3[[1]]
+distal_to_proxi_nt3             <- rbind(distal_to_proxi_nt3,res.filt.nt3[[2]][,match(colnames(distal_to_proxi_nt3),colnames(res.filt.nt3[[2]]))])
+distal_to_proxi_nt3             <- distal_to_proxi_nt3[!duplicated(distal_to_proxi_nt3$id.proximal),]
+distal_to_proxi_nt3$promdistNGF <- ifelse(distal_to_proxi_nt3$id.distal%in%res.filt.nt3[[1]]$id.distal,TRUE,FALSE)
+distal_to_proxi_nt3$promproxNT3 <- ifelse(distal_to_proxi_nt3$id.distal%in%res.filt.nt3[[2]]$id.distal,TRUE,FALSE)
+#write.csv(distal_to_proxi_nt3,file="./zenodo/apa/distal_to_proxi_nt3.csv")
+#Check
+#sum(as.character(distal_to_proxi_nt3$id.distal)!=as.character(read.csv("./zenodo/apa/distal_to_proxi_nt3.csv")$id.distal))
+
+par(mfrow=c(1,2))
+#Plot the number of events
+mycolsTreat <- c("#81A4D6","#AF72B0")
+no_events_apa<- cbind(c(nrow(distal_to_proxi_ngf),nrow(res.filt.ngf[[2]]),nrow(res.filt.ngf[[1]])),
+                      c(nrow(distal_to_proxi_nt3),nrow(res.filt.nt3[[2]]),nrow(res.filt.nt3[[1]])))
+                      
+                      
+mp<- barplot(no_events_apa,las=1,col=c("#81A4D6","white","white","#AF72B0","white","white"),
+             ylim=c(0,50),cex.axis=0.7,beside=TRUE,
+             border=c("#81A4D6","#81A4D6","#AF72B0","#AF72B0","#AF72B0","#81A4D6"))
+mtext(side=2,line=3.5,text="# of promoter distal-to-proximal",cex=0.7)
+mtext(side=2,line=3,text="shiftsl",cex=0.7)
+mtext(side=3,line=1,at=c(0,mp),text=c("no.events:",no_events_apa),cex=0.7)
+
+coldiff <- c("grey",rgb(0,0,0,0.15))
+colsNGF <- c("#81A4D6","#2D598E","#083872")
+colsNT3 <- c("#AE73B1","#79387C","#57055B")
+
+
+plot(myOut[,c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=rgb(0,0,0,0.1),cex=0.3,xlab="PUD NGF",ylab="PUD NT3",las=1,frame=FALSE,xlab="Ip/(Ip+Id) [NT3]",ylab="Ip/(Ip+Id) [NGF]")
+points(myOut[myOut$id.distal%in%distal_to_proxi_nt3$id.distal,c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=colsNT3[1],cex=0.7)
+text(x=0.4,y=0.0,labels=paste(nrow(distal_to_proxi_nt3),"distal-to-proximal shifts in NT3"),cex=0.6,col=colsNT3[1])
+points(myOut[myOut$id.distal%in%distal_to_proxi_ngf$id.distal,c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=colsNGF[1],cex=0.7)
+text(x=0.4,y=1.0,labels=paste(nrow(distal_to_proxi_ngf),"distal-to-proximal shifts in NGF"),cex=0.6,col=colsNGF[1])
+```
+
+# Biological pathway enrichment analysis
+```{r GO_analysis, eval=FALSE}
+t2g                     <- read.csv("./data/t2g_biomaRt.csv")
+txID2GO                 <- tapply(t2g$ensembl_transcript_id,INDEX=t2g$go_id,FUN=function(x)return(x))
+noNodes                 <- 300
+
+GetGOI <- function(sampleGO=temp.sampleGO,mygoID=as.character(temp$GO.ID)[1]){
+  entrez.oi       <- intersect(genesInTerm(sampleGO, mygoID)[[1]],sigGenes(sampleGO))
+  gs.oi           <- unique(as.character(t2g$external_gene_name[match(entrez.oi,t2g$ensembl_transcript_id)]))
+  return(paste(gs.oi, collapse = ', '))
+}
+
+mysampleGO.diff           <- lapply(list(unique(c(as.character(res.filt.ngf[[1]]$txID),as.character(res.filt.ngf[[2]]$txID))),
+                                         unique(c(as.character(res.filt.nt3[[1]]$txID),as.character(res.filt.nt3[[2]]$txID)))),function(Z){
+  geneNames              <- unique(t2g$ensembl_transcript_id)
+  geneList               <- factor(as.integer(geneNames %in% Z))
+  names(geneList)        <- geneNames
+  return(new("topGOdata",description = "Simple session", ontology = "BP",allGenes = geneList, geneSel = Z,nodeSize = 10,annot = annFUN.GO2genes,GO2gene=txID2GO))
+})
+
+tardir <- "./zenodo/apa/enrichment/"
+Name   <- c("dist.NT3.proxi.NGF.stringent","proxi.NT3.dist.NGF.stringent")
+myenrich            <- lapply(c(1:length(mysampleGO.diff)),function(Z){
+  mysampleGO              <- mysampleGO.diff[[Z]]
+  resultFisher            <- runTest(mysampleGO, algorithm = "classic", statistic = "fisher")
+  resultFisher.weight01   <- runTest(mysampleGO, algorithm = "weight01", statistic = "fisher")
+  temp                    <- GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "classicFisher", ranksOf = "classicFisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"Fisher_",Name[Z],".csv",sep=""))
+  
+  temp                    <-GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "weight0Fisher", ranksOf = "weight0Fisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"W0_",Name[Z],".csv",sep=""))
+})
+```
+
+```{r plot_enrichment,warning=FALSE,fig.width=8, fig.height=6}
+
+enrich <- list(read.csv("./zenodo/apa/enrichment/Fisher_dist.NT3.proxi.NGF.stringent_f.csv"),
+               read.csv("./zenodo/apa/enrichment/Fisher_proxi.NT3.dist.NGF.stringent_f.csv"))
+par(mfrow=c(2,2),mar=c(3,8,4,3))
+name <- c("Fisher.dist.NT3.proxi.NGF","Fisher.proxi.NT3.dist.NGF")
+mycols <- c("#81A4D6","#AF71AF")
+for(IX in c(1:2)){
+  enr <- enrich[[IX]]
+  dat<- -log10(enr$classicFisher)
+  names(dat)<- as.character(enr$Term)
+  dat       <- rev(dat)
+  barplot(dat,horiz=TRUE,las=1,cex.lab=0.5,cex.names = 0.5,cex.axis=0.7,cex.main=0.5,col=mycols[IX])
+}
+
+```
+
+# Test whether the changes in 3' UTR usage occur in differentially expressed genes
+```{r test_whether_APA_DGE_related,fig.width=10, fig.height=6}
+up_NGF <- read.csv("./zenodo/dge/differential_expression_cb_up_NGF.csv")#232
+up_NT3 <- read.csv("./zenodo/dge/differential_expression_cb_up_NT3.csv")#119
+
+par(mfrow=c(1,4))
+#How many isoforms are expressed for the differentially expressed genes
+#Larger variabilyt of isoforms in up-regulated genes in NGF compared to NT3
+no_iso_dge<-list(
+no_iso_NGF=unlist(lapply(as.character(up_NGF$GS),function(Z)return(length(which(as.character(anno_tot$geneSymbol)==Z))))),
+no_iso_NT3=unlist(lapply(as.character(up_NT3$GS),function(Z)return(length(which(as.character(anno_tot$geneSymbol)==Z))))))
+boxplot(no_iso_dge,las=1,ylab="# isoforms per differentially expressed genes",cex.lab=0.7,col=c(colsNGF[1],colsNT3[1]),frame=FALSE)
+mtext(side=3,line=0,text=paste("P(WT)=",format(t.test(no_iso_dge[[1]],no_iso_dge[[2]], var.equal = FALSE)$p.value,scientific=TRUE,digit=1)))
+
+#None of the events exhibit differential PUD between the two conditions
+#sum(as.character(up_NT3$GS)%in%as.character(distal_to_proxi_nt3$geneSymbol))
+#sum(as.character(up_NGF$GS)%in%as.character(distal_to_proxi_nt3$geneSymbol))
+#sum(as.character(up_NT3$GS)%in%as.character(distal_to_proxi_ngf$geneSymbol))
+#sum(as.character(up_NGF$GS)%in%as.character(distal_to_proxi_ngf$geneSymbol))
+
+coldiff <- c("grey",rgb(0,0,0,0.15))
+colsNGF <- c("#81A4D6","#2D598E","#083872")
+colsNT3 <- c("#AE73B1","#79387C","#57055B")
+
+
+plot(myOut[,c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=rgb(0,0,0,0.1),cex=0.3,xlab="PUD NGF",ylab="PUD NT3",las=1,frame=FALSE)
+points(myOut[as.character(myOut$geneSymbol)%in%as.character(up_NT3$GS),c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=colsNT3[1],cex=0.7)
+points(myOut[as.character(myOut$geneSymbol)%in%as.character(up_NGF$GS),c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=colsNGF[1],cex=0.7)
+
+
+boxplot(myOut[as.character(myOut$geneSymbol)%in%as.character(up_NT3$GS),c("PUD.NT3.cb","PUD.NGF.cb")],las=1,ylab="Ip/(Ip+Id)",cex.lab=0.7,col=c(colsNGF[1],colsNT3[1]),frame=FALSE,outline=FALSE,xaxt="n",main="Genes up-regulated in NT3")
+
+boxplot(myOut[as.character(myOut$geneSymbol)%in%as.character(up_NGF$GS),c("PUD.NT3.cb","PUD.NGF.cb")],las=1,ylab="Ip/(Ip+Id)",cex.lab=0.7,col=c(colsNGF[1],colsNT3[1]),frame=FALSE,outline=FALSE,xaxt="n",main="Genes up-regulated in NGF")
+
+#Need to add a Venn-Diagram
+
+
+```
