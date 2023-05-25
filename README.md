@@ -46,7 +46,10 @@ The analysis of the differential gene expression analysis between NT3 and NGF co
 ### 3. Differential Alternative Polyadenyation between NGF and NT3
 The analysis and related results of differential APA between NGF and NT3 is presented [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/Differential_APA_CB.html).
 
-### 4. Axonal versus cell body compartments
+### 4. Differential Alternative Polyadenyation between NGF and NT3
+Regulation of APA is presented [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/Regulation_APA.html)
+
+### 5. Axonal versus cell body compartments
 The analysis of the compartment-specific mRNA pools and factors underlying axonal localisation is presented [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/Analysis_compartment.html).
 
 
