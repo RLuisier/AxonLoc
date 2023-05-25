@@ -54,7 +54,14 @@ rm(list = ls())
 
 
 ```{r load_data_load_scripts,warning=FALSE,fig.width=8, fig.height=4}
-load("./data/myfiles.RData")#"anno_tot","myUTR"
+#load("./data/myfiles.RData")#"anno_tot","myUTR"
+
+#myUTR                <- import.gff("~/Desktop/DataAnalsyisRiccio/Dec2016/utrid/APA_stringent/Ltot_sub_Sep2017.gtf",format="gtf")
+#myUTR                <- import.gff("~/Desktop/DataAnalsyisRiccio/Nov2017/Ltot_sub_Nov2017.gtf",format="gtf")
+#names(myUTR)         <- as.character(myUTR$ID)
+
+load("./zenodo/files_analysis_Nov2017.RData")#35534
+
 #load("~/Desktop/DataAnalsyisRiccio/NGFvsNT3/files_analysis_Sep2017.RData")#Version September 2017 (remove 10% antisense)32632 3' UTR isoforms
 #myUTR        <- import.gff("./data/myUTR.gtf",format="gtf")
 #anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
@@ -64,15 +71,30 @@ source("./scripts/nested_fun_nt3_ngf.R")
 
 # Identification of APA events between NGF and NT3
 ```{r identify_APA_events_partA,eval=TRUE,warning=FALSE,fig.width=8, fig.height=4}
-# A. Remove those transcript ID which have only one isoforms
-anno_tot     <- anno_tot[anno_tot$NGF.cb.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso,]
+#A. Identify reliably expressed transcripts in the cell body of NGF and/or NT3
+coloi                <- c("NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
+mydat                <- anno_tot[which(anno_tot$is.conservative),match(coloi,colnames(anno_tot))]
+mydatall             <- anno_tot[,match(coloi,colnames(anno_tot))]
+for(i in c(1:ncol(mydat))){
+  mydat[,i] <- log2(mydat[,i]+1)
+}
+par(mfrow=c(2,2))
+lims                      <- apply(mydat,2,function(Z)2^SelectExpressed(dat=Z,frac.bg=0.9,frac.fg=0.1))
+tempsel                   <- do.call(what=cbind,lapply(c(1:4),function(Z)return(mydatall[,Z]>=lims[1,Z])))
+final.sel                                   <- cbind(tempsel[,1]&tempsel[,2],tempsel[,3]&tempsel[,4])
+anno_tot$NGF.cb.is.expressed.iso            <- final.sel[,1]
+anno_tot$NT3.cb.is.expressed.iso            <- final.sel[,2]
+anno_tot            <- anno_tot[anno_tot$NGF.cb.is.expressed.iso|anno_tot$NT3.cb.is.expressed.iso,]#20718
+
+
+# B. Remove those transcript ID which have only one isoforms
 temp         <- as.data.frame(table(as.character(anno_tot$txID)))
 no.iso       <- temp[match(anno_tot$txID,as.character(temp[,1])),2]
-anno_tot     <- anno_tot[anno_tot$no.iso>1,]#24061 rows   
+anno_tot     <- anno_tot[anno_tot$no.iso>1,]#18'118 rows   
 names(myUTR) <- myUTR$ID
 myUTR        <- myUTR[match(anno_tot$uniqueID,names(myUTR)),]
 
-# B. Check that the closest neighbour is not within 300 nt
+# C. Check that the closest neighbour is not within 300 nt
 tempL                     <- anno_tot$newL
 names(tempL)              <- anno_tot$uniqueID
 tempG                     <- as.factor(as.character(anno_tot$txID))
@@ -92,7 +114,9 @@ distonext[sel]            <- d2-d1
 #Fproxi
 Fproxi                    <- which(distonext<300)#none; ok what expected
 
-# C. Remake ordering and imID
+
+
+# D. Remake ordering
 tempL                     <- anno_tot$newL
 names(tempL)              <- anno_tot$uniqueID
 tempG                     <- as.factor(as.character(anno_tot$txID))
@@ -109,8 +133,8 @@ imID1                     <- tapply(tempL,INDEX=as.factor(as.character(anno_tot$
 imIDp                     <- as.character(imID1[match(anno_tot$txID,names(imID1))])
 anno_tot$imIDp            <- imIDp
 
-#D. Select only the cell body compartment
-coloi                    <- c("NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
+
+#E. Select only the cell body compartment
 data.con.cb              <- anno_tot[,match(coloi,colnames(anno_tot))]
 row_info                 <- anno_tot
 data.sum                 <- apply(data.con.cb,2,function(Z)return(tapply(Z,INDEX=factor(as.character(row_info$txID)),FUN=sum)))
@@ -119,7 +143,7 @@ data.sum.log2            <- log2(1+data.sum)
 
 
 
-#E. Differential 3' UTR expression analysis
+#F. Differential 3' UTR expression analysis
 count.matrix          <- anno_tot[,coloi]
 group                 <- factor(c("NGF","NGF","NT3","NT3"),levels=c("NGF","NT3"))
 my.dgelist            <- DGEList(counts = count.matrix,group = group)
@@ -142,7 +166,7 @@ res.iso$GS            <- as.character(anno_tot$geneSymbol)[match(as.character(ro
 
 ```{r identify_APA_events_partB,eval=TRUE,warning=FALSE,fig.width=8, fig.height=4}
 
-# D. Get the selection on which to focus for the analysis
+# A. Get the selection on which to focus for the analysis
 # At least one of the pair (distal or proximal) must be detected in CB of NGF
 sela11                 <- (anno_tot$NGF.cb.is.expressed.iso|anno_tot$NGF.cb.is.expressed.iso[match(anno_tot$imIDp,anno_tot$uniqueID)])
 # At least one of the  pair (distal or proximal) must be detected in CB of NT3
@@ -157,12 +181,12 @@ sela1                  <- sela11&sela21&sela3&sela41&sela51
 subanno1               <- anno_tot[sela1,]#14198 pairs for 9780 txID
 
 
-# E.    Proximal to distal site usage AND fisher test
+# B.    Proximal to distal site usage AND fisher test
 coloi                <- c("NGF.cb.1.raw.corrected","NGF.cb.2.raw.corrected","NT3.cb.1.raw.corrected","NT3.cb.2.raw.corrected")
 ix1                  <- c(1:nrow(anno_tot))
 ix2                  <- match(as.character(anno_tot$imIDp),as.character(anno_tot$uniqueID))
 
-#E.1 RUD
+#B.1 RUD
 mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
 for(i in c(1:ncol(mydat))){mydat[,i]<-log2(1+mydat[,i])}
 rownames(mydat)      <- anno_tot$uniqueID
@@ -175,7 +199,7 @@ colnames(RUD)        <- unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,p
 mRUD                  <- t(apply(RUD,1,function(x)return(tapply(x,INDEX=factor(c("NGF.cb","NGF.cb","NT3.cb","NT3.cb")),FUN=mean))))
 dRUD                  <- mRUD[,1]-mRUD[,2]#NGF:NT3
 
-#E.2 PUD
+#B.2 PUD
 mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
 ix.distal            <- c(1:nrow(anno_tot))
 ix.proximal          <- match(as.character(anno_tot$imIDp),as.character(anno_tot$uniqueID))
@@ -191,7 +215,7 @@ mPUD                <- t(apply(PUD,1,function(x)return(tapply(x,INDEX=factor(c("
 dPUD                <- mPUD[,1]-mPUD[,2]#NGF:NT3
 
 
-#E.3 Sum then PUD
+#B.3 Sum then PUD
 mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
 grp                 <- factor(unlist(lapply(FUN=function(Z)return(gsub(Z,pattern="\\.2\\.raw.corrected",repl="")),unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,pattern="\\.1\\.raw.corrected",repl="")))))),levels=c("NGF.cb","NT3.cb")) 
 mydat                <- t(apply(mydat,1,function(Z)return(tapply(Z,INDEX=grp,FUN=sum))))
@@ -209,7 +233,7 @@ dSUD                <- SUD[,1]-SUD[,2]
 
 
 
-#F. P-value from Fisher count test
+#C. P-value from Fisher count test
 mydat                <- anno_tot[,match(coloi,colnames(anno_tot))]
 grp                  <- factor(unlist(lapply(FUN=function(Z)return(gsub(Z,pattern="\\.2\\.raw\\.corrected",repl="")),unlist(lapply(colnames(mydat),function(Z)return(gsub(Z,pattern="\\.1\\.raw\\.corrected",repl="")))))),levels=c("NGF.cb","NT3.cb")) 
 mydat                <- t(apply(mydat,1,function(Z)return(tapply(Z,INDEX=grp,FUN=sum))))
@@ -329,7 +353,8 @@ res.sel.cb       <- lapply(sel.uniqueID.cb,function(Z)return(myOut[match(Z,myOut
 #write.csv(res.sel.cb[[8]],"./zenodo/apa/proxi_NGF.csv")
 ```
 
-```{r identify_APA_events_partE,eval=TRUE,warning=FALSE,fig.width=8, fig.height=6}
+
+```{r identify_APA_events_partE,eval=TRUE,warning=FALSE,fig.width=8, fig.height=4}
 #Import filtered events
 res.filt.ngf <- list(read.csv("./zenodo/apa/dist_NT3_filtered_stringent.csv"),
                      read.csv("./zenodo/apa/proxi_NGF_filtered_stringent.csv"))
@@ -382,11 +407,13 @@ colsNGF <- c("#81A4D6","#2D598E","#083872")
 colsNT3 <- c("#AE73B1","#79387C","#57055B")
 
 
-plot(myOut[,c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=rgb(0,0,0,0.1),cex=0.3,xlab="PUD NGF",ylab="PUD NT3",las=1,frame=FALSE,xlab="Ip/(Ip+Id) [NT3]",ylab="Ip/(Ip+Id) [NGF]")
+plot(myOut[,c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=rgb(0,0,0,0.1),cex=0.3,las=1,frame=FALSE,xlab="Ip/(Ip+Id) [NT3]",ylab="Ip/(Ip+Id) [NGF]")
 points(myOut[myOut$id.distal%in%distal_to_proxi_nt3$id.distal,c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=colsNT3[1],cex=0.7)
 text(x=0.4,y=0.0,labels=paste(nrow(distal_to_proxi_nt3),"distal-to-proximal shifts in NT3"),cex=0.6,col=colsNT3[1])
 points(myOut[myOut$id.distal%in%distal_to_proxi_ngf$id.distal,c("PUD.NT3.cb","PUD.NGF.cb")],pch=19,col=colsNGF[1],cex=0.7)
 text(x=0.4,y=1.0,labels=paste(nrow(distal_to_proxi_ngf),"distal-to-proximal shifts in NGF"),cex=0.6,col=colsNGF[1])
+
+#write.csv(myOut,"./zenodo/apa/apa.csv")
 ```
 
 # Biological pathway enrichment analysis
@@ -427,11 +454,11 @@ myenrich            <- lapply(c(1:length(mysampleGO.diff)),function(Z){
 })
 ```
 
-```{r plot_enrichment,warning=FALSE,fig.width=8, fig.height=6}
+```{r plot_enrichment,warning=FALSE,fig.width=8, fig.height=4}
 
 enrich <- list(read.csv("./zenodo/apa/enrichment/Fisher_dist.NT3.proxi.NGF.stringent_f.csv"),
                read.csv("./zenodo/apa/enrichment/Fisher_proxi.NT3.dist.NGF.stringent_f.csv"))
-par(mfrow=c(2,2),mar=c(3,8,4,3))
+par(mfrow=c(1,2),mar=c(3,8,4,3))
 name <- c("Fisher.dist.NT3.proxi.NGF","Fisher.proxi.NT3.dist.NGF")
 mycols <- c("#81A4D6","#AF71AF")
 for(IX in c(1:2)){
@@ -445,16 +472,17 @@ for(IX in c(1:2)){
 ```
 
 # Test whether the changes in 3' UTR usage occur in differentially expressed genes
-```{r test_whether_APA_DGE_related,fig.width=10, fig.height=6}
+```{r test_whether_APA_DGE_related,fig.width=10, fig.height=8}
 up_NGF <- read.csv("./zenodo/dge/differential_expression_cb_up_NGF.csv")#232
 up_NT3 <- read.csv("./zenodo/dge/differential_expression_cb_up_NT3.csv")#119
-
-par(mfrow=c(1,4))
+#par(mfrow=c(2,4))
 #How many isoforms are expressed for the differentially expressed genes
 #Larger variabilyt of isoforms in up-regulated genes in NGF compared to NT3
 no_iso_dge<-list(
 no_iso_NGF=unlist(lapply(as.character(up_NGF$GS),function(Z)return(length(which(as.character(anno_tot$geneSymbol)==Z))))),
 no_iso_NT3=unlist(lapply(as.character(up_NT3$GS),function(Z)return(length(which(as.character(anno_tot$geneSymbol)==Z))))))
+
+par(mfrow=c(2,4))
 boxplot(no_iso_dge,las=1,ylab="# isoforms per differentially expressed genes",cex.lab=0.7,col=c(colsNGF[1],colsNT3[1]),frame=FALSE)
 mtext(side=3,line=0,text=paste("P(WT)=",format(t.test(no_iso_dge[[1]],no_iso_dge[[2]], var.equal = FALSE)$p.value,scientific=TRUE,digit=1)))
 
@@ -479,6 +507,41 @@ boxplot(myOut[as.character(myOut$geneSymbol)%in%as.character(up_NT3$GS),c("PUD.N
 boxplot(myOut[as.character(myOut$geneSymbol)%in%as.character(up_NGF$GS),c("PUD.NT3.cb","PUD.NGF.cb")],las=1,ylab="Ip/(Ip+Id)",cex.lab=0.7,col=c(colsNGF[1],colsNT3[1]),frame=FALSE,outline=FALSE,xaxt="n",main="Genes up-regulated in NGF")
 
 #Need to add a Venn-Diagram
+
+myGS  <- unique(as.character(anno_tot$geneSymbol))
+myGOI <- list(dge_NT3=unique(as.character(up_NT3$GS)),
+              dge_NGF=unique(as.character(up_NGF$GS)),
+              apa_NT3=unique(as.character(distal_to_proxi_nt3$geneSymbol)),
+              apa_NGF=unique(as.character(distal_to_proxi_ngf$geneSymbol))) 
+
+venn(list(dge=unique(unlist(myGOI[c(1,2)])),apa=unique(unlist(myGOI[c(3,4)]))))
+venn(myGOI[c(1,3)])
+venn(myGOI[c(2,4)])
+
+
+#Direct comparison between DGE and APA
+apa<- read.csv("./zenodo/apa/apa.csv")
+dge<- read.csv("./zenodo/dge/dge.csv")
+tosel<- which(apa$dPUD!=0)
+apa <- apa[tosel,]
+ix   <- match(dge$X,apa$txID)
+dge  <- dge[!is.na(ix),]
+ix   <- ix[!is.na(ix)]
+
+plot(dge$logFC,apa$dPUD[ix],pch=19,cex=0.5,col=rgb(0,0,0,0.2),xlim=c(-3,3),ylim=c(-0.6,0.6),xlab="",ylab="",las=1,frame=FALSE)
+grid()
+mtext(side=1,line=3,text="log2FC(NGF:NT3)",cex=0.7)
+mtext(side=2,line=3,text="dAPA (NGF:NT3)",cex=0.7)
+#cor(dge$logFC,apa$dPUD[ix],method="spearman")
+
+#3' utr shortening is therorically linked to increased in gene expression
+myx<- dge$logFC
+myy<- apa$dPUD[ix]
+
+quandrants_perc <- c(sum(myx<0&myy>0)/length(myx),
+                     sum(myx>0&myy>0)/length(myx),
+                     sum(myx<0&myy<0)/length(myx),
+                     sum(myx>0&myy<0)/length(myx))
 
 
 ```

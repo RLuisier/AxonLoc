@@ -1,0 +1,642 @@
+---
+title: "Regulation of Differential APA in cell body"
+author: "Idiap Research Institute"
+date: "February 2023"
+output:
+  html_document:
+    theme: paper
+#paper readable
+    highlight: monochrome
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+#    toc_float: true
+    number_sections: true
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache =TRUE)
+knitr::opts_chunk$set(fig.width=16, fig.height=10, figure.align = "center") 
+library(ggplot2) # devtools::install_github('hadley/ggplot2')
+library(RColorBrewer)
+library(wesanderson)
+library(knitr)
+library(mclust)
+#library(limma)
+require(gplots)
+require("roll")
+#library(lme4)
+#library(nlme)
+#source("http://bioconductor.org/biocLite.R")
+#require("GO.db")
+#require("limma")
+#require("topGO")
+#require("biomaRt")
+#require("org.Rn.eg.db")
+#library(grDevices)
+library(Rsamtools)
+library(IRanges)
+library(GenomicRanges)
+library(rtracklayer)
+library(geneplotter)
+library("ape")
+require("multtest")
+require("mclust")
+require("edgeR")
+library(colortools)
+rm(list = ls())
+```
+
+
+```{r nested_functions}
+
+plotEnrichAlongUTRfocusMerged <- function(mots="CPSF160_iClip",sel=c(20:30),cond="NGF",scaling=TRUE){
+
+  if(cond=="NGF"){
+    myX  = -unlist(lapply(myranges,mean))[sel]
+    myIp = ttest_APA_NGF_Ip[match(mots,rownames(ttest_APA_NGF_Ip)),sel]
+    myId = ttest_APA_NGF_Id[match(mots,rownames(ttest_APA_NGF_Id)),sel]
+    if(scaling){
+      myIp <- myIp/max(abs(myIp))
+      myId <- myId/max(abs(myId))
+    }
+    plot(myX,myIp,col="white",las=1,ylab="-log10(P-value)",frame=FALSE,xlab="distante to 3'end",ylim=c(min(c(myIp,myId),na.rm=TRUE),max(c(myIp,myId),na.rm=TRUE)))
+    abline(h=0,col="black")
+    abline(v=0,col="red",lty=2)
+    lines(myX,myIp,col="black",lwd=1.5)
+    lines(myX,myId,col="grey",lwd=1.5)
+    points(myX,myIp,col="black",pch=19)
+    points(myX,myId,col="grey",pch=19)
+    mtext(side=2,line=2,text=mots,font=1,cex=0.5)
+    mtext(side=3,line=0,text="NGF",font=1,cex=0.5)
+  }
+  
+  
+  if(cond=="NT3"){
+    myX  = -unlist(lapply(myranges,mean))[sel]
+    myIp = ttest_APA_NT3_Ip[match(mots,rownames(ttest_APA_NT3_Ip)),sel]
+    myId = ttest_APA_NT3_Id[match(mots,rownames(ttest_APA_NT3_Id)),sel]
+    plot(myX,myIp,col="white",las=1,ylab="-log10(P-value)",frame=FALSE,xlab="distante to 3'end",ylim=c(min(c(myIp,myId),na.rm=TRUE),max(c(myIp,myId),na.rm=TRUE)))
+    abline(h=0,col="black")
+    abline(v=0,col="red",lty=2)
+    lines(myX,myIp,col="black",lwd=1.5)
+    lines(myX,myId,col="grey",lwd=1.5)
+    points(myX,myIp,col="black",pch=19)
+    points(myX,myId,col="grey",pch=19)
+    mtext(side=2,line=2,text=mots,font=1,cex=0.5)
+    mtext(side=3,line=0,text="NT3",font=1,cex=0.5)
+  }
+  
+  if(cond=="diff"){
+    myX  = -unlist(lapply(myranges,mean))[sel]
+    myIp = ttest_diffAPA_Ip[match(mots,rownames(ttest_diffAPA_Ip)),sel]
+    myId = ttest_diffAPA_Ip[match(mots,rownames(ttest_diffAPA_Ip)),sel]
+    plot(myX,myIp,col="white",las=1,ylab="-log10(P-value)",frame=FALSE,xlab="distante to 3'end",ylim=c(min(c(myIp,myId),na.rm=TRUE),max(c(myIp,myId),na.rm=TRUE)))
+    abline(h=0,col="black")
+    abline(v=0,col="red",lty=2)
+    lines(myX,myIp,col="black",lwd=1.5)
+    lines(myX,myId,col="grey",lwd=1.5)
+    points(myX,myIp,col="black",pch=19)
+    points(myX,myId,col="grey",pch=19)
+    mtext(side=2,line=2,text=mots,font=1,cex=0.5)
+    mtext(side=3,line=0,text="diff",font=1,cex=0.5)
+  }
+}
+
+#PlotPUD_CLIP(mymots="HuR_iClip",myrange="[100:50]")
+#PlotPUD_CLIP(mymots="HuR_iClip",myrange="[50:0]")
+#PlotPUD_CLIP(mymots="HuR_iClip",myrange="[0:-50]")
+#PlotPUD_CLIP(mymots="HuR_iClip",myrange="[-50:-100]")
+#PlotPUD_CLIP(mymots="HuR_iClip",myrange="[-100:-150]")
+
+PlotPUD_CLIP <- function(mymots="UPF1_1_K652",myrange="[100:50]"){
+  IX_M                 <- match(mymots,colnames(myClips[[match(myrange,mynames_rages)]]))
+  clip                 <- myClips[[match(myrange,mynames_rages)]][,IX_M]
+  names(clip)          <- rownames(myClips[[match(myrange,mynames_rages)]])
+  #Proximal sites
+  #
+  no.sites <- clip[match(myOut$id.proximal,names(clip))]
+  myIp      <- list(NGF=list(unbound=myOut$PUD.NGF.cb[no.sites==0],
+                        bound=myOut$PUD.NGF.cb[no.sites>0]),
+                    NT3=list(unbound=myOut$PUD.NT3.cb[no.sites==0],
+                        bound=myOut$PUD.NT3.cb[no.sites>0]),
+                    diff=list(unbound=myOut$dPUD[no.sites==0],
+                         bound=myOut$dPUD[no.sites>0]))
+  myno <- lapply(myIp,function(Z)return(lapply(Z,length)))
+  
+  par(mfrow=c(2,3))
+  boxplot(myIp[[1]],col=colsNGF[1],las=1,frame=FALSE,outline=FALSE,ylim=c(0,1),ylab="PUD")
+  mtext(side=1,line=2,at=c(1,2),text=unlist(myno[[1]]),cex=0.7)
+  mtext(side=3,line=0,text=paste("P=",format(10^(-abs(ttest_APA_NGF_Ip[match(mymots,rownames(ttest_APA_NGF_Ip)),match(myrange,colnames(ttest_APA_NGF_Ip))])),digits=2,scientific=TRUE),sep=""),cex=0.7)
+  
+  
+  boxplot(myIp[[2]],col=colsNT3[1],las=1,frame=FALSE,outline=FALSE,ylim=c(0,1),main=paste(mymots,"in",myrange),xlab="proximal")
+  mtext(side=1,line=2,at=c(1,2),text=unlist(myno[[2]]),cex=0.7)
+  mtext(side=3,line=0,text=paste("P=",format(10^(-abs(ttest_APA_NT3_Ip[match(mymots,rownames(ttest_APA_NT3_Ip)),match(myrange,colnames(ttest_APA_NT3_Ip))])),digits=2,scientific=TRUE),sep=""),cex=0.7)
+  
+  boxplot(myIp[[3]],col="grey",las=1,frame=FALSE,outline=FALSE)
+  mtext(side=1,line=2,at=c(1,2),text=unlist(myno[[3]]),cex=0.7)
+  mtext(side=3,line=0,text=paste("P=",format(10^(-abs(ttest_diffAPA_Ip[match(mymots,rownames(ttest_diffAPA_Ip)),match(myrange,colnames(ttest_diffAPA_Ip))])),digits=2,scientific=TRUE),sep=""),cex=0.7)
+  
+  #Distal sites
+  #
+  no.sites <- clip[match(myOut$id.distal,names(clip))]
+  myId     <- list(NGF=list(unbound=myOut$PUD.NGF.cb[no.sites==0],
+                             bound=myOut$PUD.NGF.cb[no.sites>0]),
+                    NT3=list(unbound=myOut$PUD.NT3.cb[no.sites==0],
+                             bound=myOut$PUD.NT3.cb[no.sites>0]),
+                    diff=list(unbound=myOut$dPUD[no.sites==0],
+                              bound=myOut$dPUD[no.sites>0]))
+  
+  myno <- lapply(myId,function(Z)return(lapply(Z,length)))
+  
+  boxplot(myId[[1]],col=colsNGF[1],las=1,frame=FALSE,outline=FALSE,ylim=c(0,1),ylab="PUD")
+  mtext(side=1,line=2,at=c(1,2),text=unlist(myno[[1]]),cex=0.7)
+  mtext(side=3,line=0,text=paste("P=",format(10^(-abs(ttest_APA_NGF_Id[match(mymots,rownames(ttest_APA_NGF_Id)),match(myrange,colnames(ttest_APA_NGF_Id))])),digits=2,scientific=TRUE),sep=""),cex=0.7)
+  
+  
+  boxplot(myId[[2]],col=colsNT3[1],las=1,frame=FALSE,outline=FALSE,ylim=c(0,1),main=paste(mymots,"in",myrange),xlab="distal")
+  mtext(side=1,line=2,at=c(1,2),text=unlist(myno[[2]]),cex=0.7)
+  mtext(side=3,line=0,text=paste("P=",format(10^(-abs(ttest_APA_NT3_Id[match(mymots,rownames(ttest_APA_NT3_Id)),match(myrange,colnames(ttest_APA_NT3_Id))])),digits=2,scientific=TRUE),sep=""),cex=0.7)
+  
+  
+  boxplot(myId[[3]],col="grey",las=1,frame=FALSE,outline=FALSE)
+  mtext(side=1,line=2,at=c(1,2),text=unlist(myno[[3]]),cex=0.7)
+  mtext(side=3,line=0,text=paste("P=",format(10^(-abs(ttest_diffAPA_Ip[match(mymots,rownames(ttest_diffAPA_Id)),match(myrange,colnames(ttest_diffAPA_Id))])),digits=2,scientific=TRUE),sep=""),cex=0.7)
+  
+}
+
+
+SelectPositive <- function(mat){
+  mat[mat<0]<-NA
+  return(mat)
+}
+SelectNegative <- function(mat){
+  mat[mat>0]<-NA
+  return(mat)
+}
+
+plotLineWithSD<-function(x=(-unlist(lapply(myranges,mean))[-1]),mymat=fisher_proxi_NGF_reg,col1="#81A4D6",col2=rgb(129/255,164/255,214/255,0.3),YLIM=c(-2,2),YLAB="Ip Fisher Enrichment",MAIN="Proximal"){
+  mean_force=apply(mymat,2,function(W)return(median(W,na.rm=TRUE)))
+  mean_force[is.na(mean_force)]<-0
+  sd=apply(mymat,2,function(W)return(sd(W,na.rm=TRUE)))
+  sd[is.na(sd)]<-0
+  psd<-mean_force+sd
+  nsd<-mean_force-sd
+  plot(x, mean_force, ty="l", col=col1, ylab="", lty=1,lwd=3,las=1,frame=FALSE,ylim=YLIM,xlab="")
+  lines(x, psd,col=col2)
+  lines(x, nsd,col=col2)
+  polygon(x=c(x, rev(x)), y=c(psd, rev(nsd)), col=col2,border=col2)
+  lines(x, mean_force, col=col1,lwd=3)
+  abline(h=0,col="black")
+  mtext(side=3,line=0,text=MAIN,cex=0.7)
+  mtext(side=1,line=2,text="distance from 3' end",cex=0.7)
+  mtext(side=2,line=2,text=YLAB,cex=0.7)
+}
+
+
+```
+
+Integration with human clip-sequencing data mapped to HG19 genome and lifted-over the Rn5 genome.
+
+# Load the data {.tabset}
+3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
+
+eClip and iClip data generated in human cell lines (HepG2 and Hela cells) were previously mapped to Hg19 human genome; these data were lifted over the Rn5 rat genome. The object myClips is a binary matrix where rows are 3' UTR isoforms, columns are regions of 50 nt along 3' UTR and entries are 0's if no clip events and 1's if evidence of binding.
+
+```{r load_data_load_scripts,warning=FALSE,fig.width=8, fig.height=4}
+#load("./data/myfiles.RData")#"anno_tot","myUTR"
+
+#load("./data/files_analysis_Nov2017.RData")
+#
+#load("~/Desktop/DataAnalsyisRiccio/NGFvsNT3/files_analysis_Sep2017.RData")#Version September 2017 (remove 10% antisense)32632 3' UTR isoforms
+#myUTR        <- import.gff("./data/myUTR.gtf",format="gtf")
+#anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
+source("./scripts/nested_fun_differential_PAS.R")
+source("./scripts/nested_fun_nt3_ngf.R")
+source("./scripts/nested_fun_APA_CB.R")
+#myOut        <- read.csv("./zenodo/apa/apa.csv")
+load("./zenodo/files_analysis_Nov2017.RData")
+load("./zenodo/apa/myOut_nov2017.RData")#myOut
+
+proxi_ngf    <- read.csv("./zenodo/apa/distal_to_proxi_ngf.csv")
+proxi_ngf    <- read.csv("./zenodo/apa/distal_to_proxi_nt3.csv")
+res.filt.ngf <- list(read.csv("./zenodo/apa/dist_NT3_filtered_stringent.csv"),
+                     read.csv("./zenodo/apa/proxi_NGF_filtered_stringent.csv"))
+
+res.filt.nt3 <- list(read.csv("./zenodo/apa/dist_NGF_filtered_stringent.csv"),
+                     read.csv("./zenodo/apa/proxi_NT3_filtered_stringent.csv"))
+
+#Load Clip object
+names_files     <- c("APA_NGF","APA_NT3","dAPA_NGF_NT3")
+myranges         <- list(c(100,-100),c(3000,2950),c(2750,2700),c(2500,2450),c(2250,2200),c(2000,1950),c(1750,1700),c(1500,1450),c(1400,1350),c(1300,1250),c(1200,1150),c(1100,1050),c(1000,950),c(900,850),c(800,750),c(700,650),c(600,550),c(500,450),c(450,400),c(400,350),c(350,300),c(300,250),c(250,200),c(200,150),c(150,100),c(100,50),c(50,0),c(0,-50),c(-50,-100),c(-100,-150))
+mynames_rages   <- unlist(lapply(myranges,function(Z)return(paste("[",Z[[1]],":",Z[[2]],"]",sep=""))))
+
+load("./zenodo/clips.RData")#"myClips","myranges","mynames_rages"
+#List of 30 objects == for 30 regions along 3' UTR region, we collect the number of cross-link events per 3' UTR isoforms. Matrix [37513 X 335] with 37,513 isoforms and 335 clip data.
+load("./zenodo/utrsConScores.RData")#Conservation scores of 3' UTR in ConservationScoresUTRs object
+
+
+```
+
+# Overview of the conservation scores and RBP clip densities along 3' UTR {.tabset}
+
+```{r analysis_binding_conservation_scores,eval=TRUE,warning=FALSE,fig.width=8, fig.height=4}
+no_rbp_bound            <- matrix(nrow=nrow(myClips[[1]]),ncol=length(myranges),0)
+rownames(no_rbp_bound)  <- rownames(myClips[[1]])
+colnames(no_rbp_bound)  <- mynames_rages
+
+for(IX in c(1:length(mynames_rages))){
+  clipdat            <- myClips[[IX]]
+  #rownames(clipdat)  <- rownames(myClips[[IX]])
+  #clipdat            <- clipdat[match(as.character(diff.transport.neurotrophins$uniqueIDs),rownames(clipdat)),]
+  no_rbp_bound[,IX]  <- apply(clipdat>0,1,sum)   
+}
+
+par(mfrow=c(1,2))
+plot(x=-unlist(lapply(myranges,mean))[-1],y=100*apply(no_rbp_bound>1,2,function(Z)return(sum(Z,na.rm=TRUE)))[-1]/nrow(no_rbp_bound),las=1,cex.axis=0.7,cex.names=0.7,ylab="percentage 3' UTR bound by >1 RBP",type="l",pch=19,col="black",ylim=c(50,90),cex=0.8)
+points(x=-unlist(lapply(myranges,mean))[-1],y=100*apply(no_rbp_bound>1,2,function(Z)return(sum(Z,na.rm=TRUE)))[-1]/nrow(no_rbp_bound),pch=19,col="grey",cex=0.8)
+abline(v=0,col="red",lty=2)
+
+myX=-unlist(lapply(myranges[match(colnames(ConservationScoresUTRs),mynames_rages)],mean))[-1]
+plot(x=myX,y=apply(ConservationScoresUTRs,2,function(Z)return(median(Z,na.rm=TRUE)))[-1],las=1,cex.axis=0.7,cex.names=0.7,ylab="median conservation score",xlab="distance from 3' end [nt]",type="l",pch=19,col="black",cex=0.8)
+points(x=myX,y=apply(ConservationScoresUTRs,2,function(Z)return(median(Z,na.rm=TRUE)))[-1],pch=19,col="grey",cex=0.8)
+abline(v=0,col="red",lty=2)
+
+```
+
+
+# Analysis of global regulators of APA using Welch's t-test {.tabset}
+We first test the association between RBP clip events and 3' UTR usage in each conditions (NGF and NT3) using the Welch's t-test. Specifically we iteratively test for significantly different distributions between PUD scores of 3' UTR isoforms exhibiting or not a cross-link event in specific region along the 3' UTR. We test the association between PUD and binding in short 3' UTR as well as the association between PUD and binding in long 3' UTR.
+
+
+```{r Welch_test,eval=FALSE}
+#Load Clip object
+names_files     <- c("APA_NGF","APA_NT3","dAPA_NGF_NT3")
+myranges         <- list(c(100,-100),c(3000,2950),c(2750,2700),c(2500,2450),c(2250,2200),c(2000,1950),c(1750,1700),c(1500,1450),c(1400,1350),c(1300,1250),c(1200,1150),c(1100,1050),c(1000,950),c(900,850),c(800,750),c(700,650),c(600,550),c(500,450),c(450,400),c(400,350),c(350,300),c(300,250),c(250,200),c(200,150),c(150,100),c(100,50),c(50,0),c(0,-50),c(-50,-100),c(-100,-150))
+mynames_rages   <- unlist(lapply(myranges,function(Z)return(paste("[",Z[[1]],":",Z[[2]],"]",sep=""))))
+load("./zenodo/clips.RData")#"myClips","myranges","mynames_rages"
+
+
+#
+#RELATIONSHIP BETWEEN PROXIMAL RELATIVE EXPRESSION (Ip) AND RBP CROSS-LINK EVENT
+#WELSCH TEST
+#
+myTtest_APA_CB_Ip_Welsch <- list()
+for(ix in c(1:length(mynames_rages))){
+  clipdat            <- myClips[[ix]]
+  ix_row             <- match(as.character(myOut$id.proximal),rownames(clipdat))
+  print(sum(is.na(ix_row)))
+  clipdat            <- clipdat[ix_row[!is.na(ix_row)],]
+  temp_out           <- myOut[!is.na(ix_row),]
+  
+
+  myTtest_APA_CB_Ip_Welsch[[ix]]           <- matrix(0,ncol=3,nrow=ncol(clipdat))
+  colnames(myTtest_APA_CB_Ip_Welsch[[ix]]) <- c("NGF_ttest","NT3_ttest","diff_PUD_ttest")
+  rownames(myTtest_APA_CB_Ip_Welsch[[ix]]) <- colnames(clipdat)
+  for(colix in c(1:ncol(clipdat))){
+    no.sites          <- clipdat[,colix]
+    myX               <- temp_out$PUD.NGF.cb[no.sites==0]
+    myY               <- temp_out$PUD.NGF.cb[no.sites>0] 
+    myTtest_APA_CB_Ip_Welsch[[ix]][colix,1] <- -log10(t.test(x=myX,y=myY,var.equal = FALSE)$p.value)*sign(mean(myY,na.rm=TRUE)-mean(myX,na.rm=TRUE))
+    
+    
+    myX               <- temp_out$PUD.NT3.cb[no.sites==0]
+    myY               <- temp_out$PUD.NT3.cb[no.sites>0]
+    myTtest_APA_CB_Ip_Welsch[[ix]][colix,2] <- -log10(t.test(x=myX,y=myY,var.equal = FALSE)$p.value)*sign(mean(myY,na.rm=TRUE)-mean(myX,na.rm=TRUE))
+    
+    
+    myX               <- temp_out$dPUD[no.sites==0]
+    myY               <- temp_out$dPUD[no.sites>0]
+    myTtest_APA_CB_Ip_Welsch[[ix]][colix,3] <- -log10(t.test(x=myX,y=myY,var.equal = FALSE)$p.value)*sign(mean(myY,na.rm=TRUE)-mean(myX,na.rm=TRUE))
+    #print(colix)
+  }
+}
+
+ttest_APA_NGF_Ip              <- do.call(lapply(myTtest_APA_CB_Ip_Welsch,function(TTest)return(TTest[,1])),what=cbind)
+colnames(ttest_APA_NGF_Ip)    <- mynames_rages
+rownames(ttest_APA_NGF_Ip)    <- rownames(myTtest_APA_CB_Ip_Welsch[[1]])
+
+
+ttest_APA_NT3_Ip              <- do.call(lapply(myTtest_APA_CB_Ip_Welsch,function(TTest)return(TTest[,2])),what=cbind)
+colnames(ttest_APA_NT3_Ip)    <- mynames_rages
+rownames(ttest_APA_NT3_Ip)    <- rownames(myTtest_APA_CB_Ip_Welsch[[1]])
+
+ttest_diffAPA_Ip             <- do.call(lapply(myTtest_APA_CB_Ip_Welsch,function(TTest)return(TTest[,3])),what=cbind)
+colnames(ttest_diffAPA_Ip)    <- mynames_rages
+rownames(ttest_diffAPA_Ip)    <- rownames(myTtest_APA_CB_Ip_Welsch[[1]])
+
+
+#
+#RELATIONSHIP BETWEEN DISTAL RELATIVE EXPRESSION (Id) AND RBP CROSS-LINK EVENT
+#WELSCH TEST
+#
+myTtest_APA_CB_Id_Welsch <- list()
+for(ix in c(1:length(mynames_rages))){
+  clipdat            <- myClips[[ix]]
+  
+  ix_row             <- match(as.character(myOut$id.distal),rownames(clipdat))
+  print(sum(is.na(ix_row)))
+  clipdat            <- clipdat[ix_row[!is.na(ix_row)],]
+  temp_out           <- myOut[!is.na(ix_row),]
+  
+  myTtest_APA_CB_Id_Welsch[[ix]]           <- matrix(0,ncol=3,nrow=ncol(clipdat))
+  colnames(myTtest_APA_CB_Id_Welsch[[ix]]) <- c("NGF_ttest","NT3_ttest","diff_PUD_ttest")
+  rownames(myTtest_APA_CB_Id_Welsch[[ix]]) <- colnames(clipdat)
+  for(colix in c(1:ncol(clipdat))){
+    no.sites          <- clipdat[,colix]
+    myX               <- temp_out$PUD.NGF.cb[no.sites==0]
+    myY               <- temp_out$PUD.NGF.cb[no.sites>0]
+    myTtest_APA_CB_Id_Welsch[[ix]][colix,1] <- -log10(t.test(x=myX,y=myY,var.equal = FALSE)$p.value)*sign(mean(myY,na.rm=TRUE)-mean(myX,na.rm=TRUE))
+    
+    
+    myX               <- temp_out$PUD.NT3.cb[no.sites==0]
+    myY               <- temp_out$PUD.NT3.cb[no.sites>0]
+    myTtest_APA_CB_Id_Welsch[[ix]][colix,2] <- -log10(t.test(x=myX,y=myY,var.equal = FALSE)$p.value)*sign(mean(myY,na.rm=TRUE)-mean(myX,na.rm=TRUE))
+    
+    
+    myX               <- temp_out$dPUD[no.sites==0]
+    myY               <- temp_out$dPUD[no.sites>0]
+    myTtest_APA_CB_Id_Welsch[[ix]][colix,3] <- -log10(t.test(x=myX,y=myY,var.equal = FALSE)$p.value)*sign(mean(myY,na.rm=TRUE)-mean(myX,na.rm=TRUE))
+    #print(colix)
+  }
+}
+
+ttest_APA_NGF_Id              <- do.call(lapply(myTtest_APA_CB_Id_Welsch,function(TTest)return(TTest[,1])),what=cbind)
+colnames(ttest_APA_NGF_Id)    <- mynames_rages
+rownames(ttest_APA_NGF_Id)    <- rownames(myTtest_APA_CB_Id_Welsch[[1]])
+
+ttest_APA_NT3_Id              <- do.call(lapply(myTtest_APA_CB_Id_Welsch,function(TTest)return(TTest[,2])),what=cbind)
+colnames(ttest_APA_NT3_Id)    <- mynames_rages
+rownames(ttest_APA_NT3_Id)    <- rownames(myTtest_APA_CB_Id_Welsch[[1]])
+
+ttest_diffAPA_Id             <- do.call(lapply(myTtest_APA_CB_Id_Welsch,function(TTest)return(TTest[,3])),what=cbind)
+colnames(ttest_diffAPA_Id)    <- mynames_rages
+rownames(ttest_diffAPA_Id)    <- rownames(myTtest_APA_CB_Id_Welsch[[1]])
+
+
+#save(list=c("ttest_APA_NGF_Ip","ttest_APA_NT3_Ip","ttest_diffAPA_Ip","ttest_APA_NGF_Id","ttest_APA_NT3_Id","ttest_diffAPA_Id"),file="./zenodo/apa/regulation/welch.RData")
+```
+
+We can now look at the distributions of the P-value around the 3' end to identify key regulatory regions.
+
+```{r regulators_APA_NGF_NT3,warnings=FALSE,eval=TRUE,warning=FALSE,fig.width=12, fig.height=6}
+
+load("./zenodo/apa/regulation/welch.RData")
+coldiff <- c("grey",rgb(0,0,0,0.15))
+colNGF <- c("#81A4D6",rgb(129/255,164/255,214/255,0.25))
+colNT3 <- c("#AE72B0",rgb(174/255,114/255,176/255,0.25))
+colPOS <- c("#991721",rgb(153/255,23/255,33/255,0.25))
+colNEG <- c("#313332",rgb(49/255,51/255,50/255,0.25))
+
+
+colsNGF <- c("#81A4D6",rgb(129/255,164/255,214/255,0.25))
+colsNT3 <- c("#AE72B0",rgb(174/255,114/255,176/255,0.25))
+
+
+par(mfrow=c(2,4))#Try to test the difference between the positive and the negative regulators
+plotLineWithSD(x=(-unlist(lapply(myranges,mean))[-1]),mymat=SelectPositive(ttest_APA_NGF_Ip)[,-1],col1=colNGF[1],col2=colNGF[2],YLIM=c(0,15),YLAB="P-value [-log10 -- Welch]",MAIN="Positive regulators of Ip (NGF)")
+abline(v=0,col="darkgrey",lty=3,lwd=2)
+plotLineWithSD(x=(-unlist(lapply(myranges,mean))[-1]),mymat=abs(SelectNegative(ttest_APA_NGF_Ip))[,-1],col1=colNEG[1],col2=colNEG[2],YLIM=c(0,15),YLAB="P-value [-log10 -- Welch]",MAIN="Negative regulators of Ip (NGF)")
+abline(v=0,col="darkgrey",lty=3,lwd=2)
+
+plotLineWithSD(x=(-unlist(lapply(myranges,mean))[-1]),mymat=SelectPositive(ttest_APA_NT3_Ip)[,-1],col1=colsNT3[1],col2=colsNT3[2],YLIM=c(0,15),YLAB="P-value [-log10 -- Welch]",MAIN="Positive regulators of Ip (NT3)")
+abline(v=0,col="darkgrey",lty=3,lwd=2)
+plotLineWithSD(x=(-unlist(lapply(myranges,mean))[-1]),mymat=abs(SelectNegative(ttest_APA_NT3_Ip))[,-1],col1=colNEG[1],col2=colNEG[2],YLIM=c(0,15),YLAB="P-value [-log10 -- Welch]",MAIN="Negative regulators of Ip (NT3)")
+abline(v=0,col="darkgrey",lty=3,lwd=2)
+
+
+plotLineWithSD(x=(-unlist(lapply(myranges,mean))[-1]),mymat=abs(SelectNegative(ttest_APA_NGF_Id)[,-1]),col1=colNGF[1],col2=colNGF[2],YLIM=c(0,50),YLAB="P-value [-log10 -- Welch]",MAIN="Positive regulators of Id (NGF)")
+abline(v=0,col="darkgrey",lty=3,lwd=2)
+plotLineWithSD(x=(-unlist(lapply(myranges,mean))[-1]),mymat=SelectPositive(ttest_APA_NGF_Id)[,-1],col1=colNEG[1],col2=colNEG[2],YLIM=c(0,3),YLAB="P-value [-log10 -- Welch]",MAIN="Negative regulators of Id (NGF)")
+abline(v=0,col="darkgrey",lty=3,lwd=2)
+
+
+plotLineWithSD(x=(-unlist(lapply(myranges,mean))[-1]),mymat=abs(SelectNegative(ttest_APA_NT3_Id)[,-1]),col1=colsNT3[1],col2=colsNT3[2],YLIM=c(0,50),YLAB="P-value [-log10 -- Welch]",MAIN="Positive regulators of Id (NT3)")
+abline(v=0,col="darkgrey",lty=3,lwd=2)
+plotLineWithSD(x=(-unlist(lapply(myranges,mean))[-1]),mymat=SelectPositive(ttest_APA_NT3_Id)[,-1],col1=colNEG[1],col2=colNEG[2],YLIM=c(0,3),YLAB="P-value [-log10 -- Welch]",MAIN="Negative regulators of Id (NT3)")
+abline(v=0,col="darkgrey",lty=3,lwd=2)
+
+
+```
+
+## Global positive regulators of APA {.tabset}
+As shown below, global positive reuguators are exhibiting positive P-values around the 3' ends of both proximal (Ip; black lines) and distal (Id; grey lines) 3' UTR isoforms.
+
+```{r global_positive_regulators_APA,warnings=FALSE,eval=TRUE,warning=FALSE,fig.width=12, fig.height=6}
+
+global_positive             <- lapply(c(1:ncol(ttest_APA_NGF_Ip)),function(W)return(unlist(lapply(ExtractTopRegulatorsSimple(sub2=cbind(ttest_APA_NGF_Ip[,W],-ttest_APA_NGF_Id[,W])),function(IX)return(rownames(ttest_APA_NGF_Ip)[IX])))))
+global_positive_names <- lapply(global_positive,function(W)return(unique(unlist(lapply(W,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))))
+names(global_positive_names) <- myranges
+myPositive                   <- unique(unlist(global_positive_names))
+MOTS_POS                     <-unique(unlist(global_positive))
+START <- unlist(lapply(myranges,function(Z)return(-Z[1])))
+END   <- unlist(lapply(myranges,function(Z)return(-Z[2])))
+ROI                          <- mynames_rages[unlist(lapply(MOTS_POS,function(mymot)sort(-ttest_APA_NGF_Id[match(mymot,rownames(ttest_APA_NGF_Id)),-1],decreasing=TRUE,index.return=TRUE)$ix[1]+1))]
+ROIp <- mynames_rages[unlist(lapply(MOTS_POS,function(mymot)sort(ttest_APA_NGF_Ip[match(mymot,rownames(ttest_APA_NGF_Ip)),-1],decreasing=TRUE,index.return=TRUE)$ix[1]+1))]
+
+ValuesOI_Ip                    <- unlist(mapply(A=MOTS_POS,B=ROI,function(A,B){
+  ttest_APA_NGF_Ip[match(A,rownames(ttest_APA_NGF_Ip)),match(B,colnames(ttest_APA_NGF_Ip))]
+}))
+ValuesOI_Id                    <- -unlist(mapply(A=MOTS_POS,B=ROI,function(A,B){
+  ttest_APA_NGF_Id[match(A,rownames(ttest_APA_NGF_Id)),match(B,colnames(ttest_APA_NGF_Id))]
+}))
+
+
+global_positive_regulators <- data.frame(Clip=MOTS_POS,
+                            GS=unlist(lapply(MOTS_POS,function(Z)return((unlist(strsplit(Z,split="_"))[1])))),
+                                         start.Ip=START[match(ROIp,mynames_rages)],
+                                         end.Ip=END[match(ROIp,mynames_rages)],
+                                         start.Id=START[match(ROI,mynames_rages)],
+                                         end.Id=END[match(ROI,mynames_rages)],
+                                         max_vals_Ip=ValuesOI_Ip,
+                                         max_vals_Id=ValuesOI_Id)
+
+
+
+sel<-which(!duplicated(global_positive_regulators$GS))
+layout(matrix(c(1,1,2,3,4,5,6,7),byrow = TRUE,ncol=4,nrow=2))
+plot(x=apply(cbind(apply(global_positive_regulators[sel,c("start.Ip","start.Id")],1,mean),
+                   apply(global_positive_regulators[sel,c("end.Ip","end.Id")],1,mean)),1,mean),
+     y=global_positive_regulators[sel,"max_vals_Ip"]
+     ,col="black",
+     type="h",xlim=c(-400,150),ylim=c(0,40),xlab="distance from 3' end",ylab="Pvalue",las=1)
+text(x=apply(cbind(apply(global_positive_regulators[sel,c("start.Ip","start.Id")],1,mean),
+                   apply(global_positive_regulators[sel,c("end.Ip","end.Id")],1,mean)),1,mean),
+     y=global_positive_regulators[sel,"max_vals_Ip"],
+     labels=global_positive_regulators$GS[sel],
+     cex=0.6)
+
+plotEnrichAlongUTRfocusMerged(mots="CPSF160_iClip",sel=c(20:30),cond="NGF",scaling=TRUE)
+plotEnrichAlongUTRfocusMerged(mots="CSTF2T_1_HepG2",sel=c(20:30),cond="NGF")
+plotEnrichAlongUTRfocusMerged(mots="FMR1_2_K652",sel=c(20:30),cond="NGF")
+plotEnrichAlongUTRfocusMerged(mots="TIAL1_iClip",sel=c(20:30),cond="NGF")
+plotEnrichAlongUTRfocusMerged(mots="KHSRP_1_K652",sel=c(20:30),cond="NGF")
+plotEnrichAlongUTRfocusMerged(mots="Celf4_iClip",sel=c(20:30),cond="NGF")
+```
+
+```{r global_positive_regulators_APA_heatmap,warnings=FALSE,eval=TRUE,warning=FALSE,fig.width=4, fig.height=6}
+
+PlotHeatmapRegulators(mots=unique(unlist(global_positive)),mymats=list(ttest_APA_NGF_Ip[,-1],-ttest_APA_NGF_Id[,-1]))
+```
+
+
+```{r identification_positive_NGF_NT3_specific,eval=TRUE}
+
+
+##
+##POSITIVE REGULATORS NGF
+##
+Ip_positive_NGF             <- lapply(c(1:ncol(ttest_APA_NGF_Ip)),function(W){
+  LIMS <- boxplot(ttest_APA_NGF_Ip[,W],plot=FALSE)$stats[5,1]
+  return(setdiff(rownames(ttest_APA_NGF_Ip)[(ttest_APA_NGF_Ip[,W])>LIMS],unique(unlist(global_positive))))
+})
+Ip_positive_NGF_names        <- lapply(Ip_positive_NGF,function(W)return(unique(unlist(lapply(W,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))))
+names(Ip_positive_NGF_names) <- myranges
+Ip_positive_NGF_names <- Ip_positive_NGF_names[c(22:30)]
+Ip_positive_NGF       <- Ip_positive_NGF[c(22:30)]
+myPositiveNGF         <- unique(unlist(Ip_positive_NGF_names))
+MOTS_POS              <-unique(unlist(Ip_positive_NGF))
+START <- unlist(lapply(myranges,function(Z)return(-Z[1])))
+END   <- unlist(lapply(myranges,function(Z)return(-Z[2])))
+ROIp  <- mynames_rages[unlist(lapply(MOTS_POS,function(mymot)sort(ttest_APA_NGF_Ip[match(mymot,rownames(ttest_APA_NGF_Ip)),-1],decreasing=TRUE,index.return=TRUE)$ix[1]+1))]
+ValuesOI                   <- unlist(mapply(A=MOTS_POS,B=ROIp,function(A,B){
+  ttest_APA_NGF_Ip[match(A,rownames(ttest_APA_NGF_Ip)),match(B,colnames(ttest_APA_NGF_Ip))]
+}))
+Ip_positive_NGF_regulators <- data.frame(start.Ip=START[match(ROIp,mynames_rages)],
+                                         end.Ip=END[match(ROIp,mynames_rages)],
+                                         vals=ValuesOI,
+                                         Clip=MOTS_POS,
+                                         GS=unlist(lapply(MOTS_POS,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))
+
+##
+##POSITIVE REGULATORS DISTAL NGF -Id
+##
+Id_positive_NGF             <- lapply(c(1:ncol(ttest_APA_NGF_Id)),function(W){
+  LIMS <- boxplot(-ttest_APA_NGF_Id[,W],plot=FALSE)$stats[5,1]
+  return(setdiff(rownames(ttest_APA_NGF_Id)[(-ttest_APA_NGF_Id[,W])>LIMS],unique(unlist(global_positive))))
+})
+Id_positive_NGF_names        <- lapply(Id_positive_NGF,function(W)return(unique(unlist(lapply(W,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))))
+names(Id_positive_NGF_names) <- myranges
+Id_positive_NGF_names <- Id_positive_NGF_names[c(22:30)]
+Id_positive_NGF       <- Id_positive_NGF[c(22:30)]
+myPositiveNGF         <- unique(unlist(Id_positive_NGF_names))
+MOTS_POS              <-unique(unlist(Id_positive_NGF))
+START                 <- unlist(lapply(myranges,function(Z)return(-Z[1])))
+END                   <- unlist(lapply(myranges,function(Z)return(-Z[2])))
+
+ROIp                       <- mynames_rages[unlist(lapply(MOTS_POS,function(mymot)sort(-ttest_APA_NGF_Ip[match(mymot,rownames(ttest_APA_NGF_Ip)),-1],decreasing=TRUE,index.return=TRUE)$ix[1]+1))]
+ValuesOI                   <- -unlist(mapply(A=MOTS_POS,B=ROIp,function(A,B){
+  -ttest_APA_NGF_Ip[match(A,rownames(ttest_APA_NGF_Ip)),match(B,colnames(ttest_APA_NGF_Ip))]
+}))
+
+
+ROId  <- mynames_rages[unlist(lapply(MOTS_POS,function(mymot)sort(-ttest_APA_NGF_Id[match(mymot,rownames(ttest_APA_NGF_Id)),-1],decreasing=TRUE,index.return=TRUE)$ix[1]+1))]
+ValuesOI_Id                   <- unlist(mapply(A=MOTS_POS,B=ROId,function(A,B){
+  ttest_APA_NGF_Id[match(A,rownames(ttest_APA_NGF_Id)),match(B,colnames(ttest_APA_NGF_Id))]
+}))
+
+Id_positive_NGF_regulators <- data.frame(start.Ip=START[match(ROIp,mynames_rages)],
+                                         end.Ip=END[match(ROIp,mynames_rages)],
+                                         start.Id=START[match(ROId,mynames_rages)],
+                                         end.Id=END[match(ROId,mynames_rages)],
+                                         Clip=MOTS_POS,
+                                         vals_Ip=ValuesOI,
+                                         vals_Id=ValuesOI_Id,
+                                         GS=unlist(lapply(MOTS_POS,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))
+
+Id_positive_NGF_regulators <- Id_positive_NGF_regulators[!Id_positive_NGF_regulators$GS%in%c("CSTF2T","KHDRBS1","U2AF2"),]
+Id_positive_NGF_regulators <- Id_positive_NGF_regulators[!Id_positive_NGF_regulators$GS%in%Ip_positive_NGF_regulators$GS,]
+
+
+##
+##POSITIVE REGULATORS NT3
+##
+Ip_positive_NT3             <- lapply(c(1:ncol(ttest_APA_NT3_Ip)),function(W){
+  LIMS <- boxplot(ttest_APA_NT3_Ip[,W],plot=FALSE)$stats[5,1]
+  return(setdiff(rownames(ttest_APA_NT3_Ip)[(ttest_APA_NT3_Ip[,W])>LIMS],unique(unlist(global_positive))))
+})
+Ip_positive_NT3_names        <- lapply(Ip_positive_NT3,function(W)return(unique(unlist(lapply(W,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))))
+names(Ip_positive_NT3_names) <- myranges
+Ip_positive_NT3_names <- Ip_positive_NT3_names[c(22:30)]
+Ip_positive_NT3       <- Ip_positive_NT3[c(22:30)]
+myPositiveNT3         <- unique(unlist(Ip_positive_NT3_names))
+MOTS_POS              <-unique(unlist(Ip_positive_NT3))
+START <- unlist(lapply(myranges,function(Z)return(-Z[1])))
+END   <- unlist(lapply(myranges,function(Z)return(-Z[2])))
+ROIp  <- mynames_rages[unlist(lapply(MOTS_POS,function(mymot)sort(ttest_APA_NT3_Ip[match(mymot,rownames(ttest_APA_NT3_Ip)),-1],decreasing=TRUE,index.return=TRUE)$ix[1]+1))]
+ValuesOI                   <- unlist(mapply(A=MOTS_POS,B=ROIp,function(A,B){
+  ttest_APA_NT3_Ip[match(A,rownames(ttest_APA_NT3_Ip)),match(B,colnames(ttest_APA_NT3_Ip))]
+}))
+Ip_positive_NT3_regulators <- data.frame(start.Ip=START[match(ROIp,mynames_rages)],
+                                         end.Ip=END[match(ROIp,mynames_rages)],
+                                         vals=ValuesOI,
+                                         Clip=MOTS_POS,
+                                         GS=unlist(lapply(MOTS_POS,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))
+
+```
+## Global negative regulators of APA {.tabset}
+
+```{r global_negative_regulators_APA,warnings=FALSE,eval=TRUE,warning=FALSE,fig.width=12, fig.height=6}
+global_negative             <- lapply(c(1:ncol(ttest_APA_NGF_Ip)),function(W){
+  LIMS <- boxplot(-ttest_APA_NGF_Ip[,W],plot=FALSE)$stats[5,1]
+  return(rownames(ttest_APA_NGF_Ip)[(-ttest_APA_NGF_Ip[,W])>=LIMS])
+  
+})
+
+global_negative_names         <- lapply(global_negative,function(W)return(unique(unlist(lapply(W,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))))
+names(global_negative_names) <- myranges
+myNegative                   <- unique(unlist(global_negative_names))
+MOTS_NEG                   <-unique(unlist(global_negative))
+START                      <- unlist(lapply(myranges,function(Z)return(-Z[1])))
+END                        <- unlist(lapply(myranges,function(Z)return(-Z[2])))
+ROIp                       <- mynames_rages[unlist(lapply(MOTS_NEG,function(mymot)sort(-ttest_APA_NGF_Ip[match(mymot,rownames(ttest_APA_NGF_Ip)),-1],decreasing=TRUE,index.return=TRUE)$ix[1]+1))]
+ValuesOI                   <- -unlist(mapply(A=MOTS_NEG,B=ROIp,function(A,B){
+  -ttest_APA_NGF_Ip[match(A,rownames(ttest_APA_NGF_Ip)),match(B,colnames(ttest_APA_NGF_Ip))]
+}))
+
+
+ROId  <- mynames_rages[unlist(lapply(MOTS_NEG,function(mymot)sort(-ttest_APA_NGF_Id[match(mymot,rownames(ttest_APA_NGF_Id)),-1],decreasing=TRUE,index.return=TRUE)$ix[1]+1))]
+ValuesOI_Id                   <- unlist(mapply(A=MOTS_NEG,B=ROId,function(A,B){
+  ttest_APA_NGF_Id[match(A,rownames(ttest_APA_NGF_Id)),match(B,colnames(ttest_APA_NGF_Id))]
+}))
+
+
+global_negative_regulators <- data.frame(start.Ip=START[match(ROIp,mynames_rages)],
+                                         end.Ip=END[match(ROIp,mynames_rages)],
+                                         start.Id=START[match(ROId,mynames_rages)],
+                                         end.Id=END[match(ROId,mynames_rages)],
+                                         Clip=MOTS_NEG,
+                                         vals_Ip=ValuesOI,
+                                         vals_Id=ValuesOI_Id,
+                                         GS=unlist(lapply(MOTS_NEG,function(Z)return((unlist(strsplit(Z,split="_"))[1])))))
+
+global_negative_regulators <- global_negative_regulators[global_negative_regulators$vals_Ip<=(-15),]
+neg_pos_regs<- rbind(Id_positive_NGF_regulators,global_negative_regulators)
+neg_pos_regs<- neg_pos_regs[!duplicated(neg_pos_regs$Clip),]
+selMOTS=as.character(neg_pos_regs$Clip)
+
+sel<-which(!duplicated(neg_pos_regs$GS))
+layout(matrix(c(1,1,2,3,4,5,6,7),byrow = TRUE,ncol=4,nrow=2))
+plot(x=apply(neg_pos_regs[sel,c("start.Id","end.Id")],1,mean),ylim=c(10,160),
+     y=-neg_pos_regs[sel,"vals_Id"]
+     ,col="black",
+     type="h",xlim=c(-500,200),xlab="distance from 3' end",ylab="Pvalue",las=1)
+text(x=apply(neg_pos_regs[sel,c("start.Id","end.Id")],1,mean),
+     y=-neg_pos_regs[sel,"vals_Id"],
+     labels=as.character(neg_pos_regs$GS[sel]),
+     cex=0.6)
+
+plotEnrichAlongUTRfocusMerged(mots="HuR_iClip",sel=c(20:30),cond="NGF")
+plotEnrichAlongUTRfocusMerged(mots="UPF1_1_K652",sel=c(20:30),cond="NGF")
+plotEnrichAlongUTRfocusMerged(mots="IGF2BP2_1_K652",sel=c(20:30),cond="NGF")
+plotEnrichAlongUTRfocusMerged(mots="IGF2BP1_iClip",sel=c(20:30),cond="NGF")
+plotEnrichAlongUTRfocusMerged(mots="TIAL1_iClip",sel=c(20:30),cond="NGF")
+```
+
+```{r global_negative_regulators_APA_heatmap,warnings=FALSE,eval=TRUE,warning=FALSE,fig.width=4, fig.height=6}
+PlotHeatmapRegulators(mots=selMOTS,mymats=list(ttest_APA_NGF_Ip[,-1],-ttest_APA_NGF_Id[,-1]))
+```

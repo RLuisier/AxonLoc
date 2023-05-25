@@ -56,6 +56,8 @@ load("./data/myfiles.RData")#"anno_tot","myUTR"
 #anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
 names(myUTR)  <- as.character(myUTR$ID)
 source("./scripts/nested_fun_differential_PAS.R")
+load("./data/files_analysis_Nov2017.RData")
+
 ```
 
 

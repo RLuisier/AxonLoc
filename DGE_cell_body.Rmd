@@ -148,6 +148,7 @@ res              <- et$table
 res              <- data.frame(res,cpm(my.dgelist)[, order(my.dgelist$samples$group)])
 res$GS           <- as.character(row_info$geneSymbol)[match(as.character(rownames(res)),as.character(row_info$txID))]
 #res$is.diff      <- rownames(res)%in%detags
+#write.csv(res,file="./zenodo/dge/dge.csv")
 
 #Create output of differentially expressed genes
 sel1           <- abs(res$logFC)>log2(1.5)
