@@ -178,7 +178,6 @@ def plot_curves_all_conditions(datasets_per_condition,
     for i, condition in enumerate(datasets_per_condition.keys()):
 
         X_train, X_test, y_train, y_test = datasets_per_condition[condition][dataset_key].values()
-        print("plotting...")
         # Plot learning curves
         plt.subplot(nb_conditions, 4, (i*4)+1)
         plot_learning_curves(model=datasets_per_condition[condition][model_key], 
@@ -235,13 +234,9 @@ def plot_curves_all_conditions(datasets_per_condition,
 
         plt.title('Precision recall curves - '+conditions_names[i], weight='bold', fontsize=17)
               
-    print("Saving the learning curves...")
     if save_path is not None:
-        print('save_path is not None')
         if not os.path.exists(save_path):
-            print("I'm created the folder to save")
             os.makedirs(save_path)
-        print("I am definitely saving right now")
         plt.savefig(os.path.join(save_path, exp_name+"_learning_ROC_PR_curves."+format), bbox_inches='tight', format=format)
 
 
@@ -345,7 +340,7 @@ def create_interaction_dataset_from_list(X_train,
 def plot_shapley(shap_values, X_test, feature_names, max_display=44, show=False, class_label=1, 
                  path_to_save=None, negative_regulators=[], condition_name='', split_symbol='*', xlim=None, sort=True, 
                  cmap='bwr', custom_legend=True, 
-                 format='png', color_bar=False):
+                 format='png', color_bar=False, beeswarm_only=False):
     """Plot Shapley values as beeswarm plot and barplot.
     
     Args:
@@ -365,9 +360,10 @@ def plot_shapley(shap_values, X_test, feature_names, max_display=44, show=False,
         custom_legend (bool, optional): Whether to use a custom legend (for categorical values). Defaults to True.
         format (str, optional): The format in which to save the figures. Defaults to 'png'.
         color_bar (boo, optional): Whether to display the color bar on the beeswarm plots.
+        beeswarm_only: whether to plot the beeswarm only or to display also the barplot.
     """
     
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 5))
     shap.summary_plot(shap_values[class_label], X_test, feature_names=feature_names, max_display=max_display, 
                       show=show, sort=sort, color_bar=color_bar, cmap=cmap)
     tick_labels = []
@@ -394,27 +390,30 @@ def plot_shapley(shap_values, X_test, feature_names, max_display=44, show=False,
         ax.legend(handles=custom_patches, loc='best')
     ax.set_title(condition_name,  weight='bold')
 
-    fig.savefig(os.path.join(path_to_save, "beeswarm_"+condition_name.replace(' ', '_')+"."+format), bbox_inches='tight', format=format)
+    if path_to_save is not None:
+        fig.savefig(os.path.join(path_to_save, "beeswarm_"+condition_name.replace(' ', '_')+"."+format), bbox_inches='tight', format=format)
 
 
-    fig, ax = plt.subplots()
-    shap.summary_plot(shap_values[class_label], X_test, feature_names=feature_names, plot_type='bar', max_display=max_display, 
-                      show=show, sort=sort)
-    tick_labels = []
-    for feature_name in ax.get_yticklabels():
-        feature_name_short = feature_name.get_text().split('=')[0]
-        feature_tick_name = []
-        for feature in feature_name_short.split(split_symbol):
-            if feature in negative_regulators:
-                feature_tick_name.append(r"$\bf{"+feature+"}$")
-            else:
-                feature_tick_name.append(feature)
-        tick_labels.append(split_symbol.join(feature_tick_name))
-    ax.set_yticks(ticks = np.arange(len(feature_names)), 
-            labels = tick_labels);
-    ax.set_title(condition_name,  weight='bold')
+    if not beeswarm_only:
+        fig, ax = plt.subplots()
+        shap.summary_plot(shap_values[class_label], X_test, feature_names=feature_names, plot_type='bar', max_display=max_display, 
+                        show=show, sort=sort)
+        tick_labels = []
+        for feature_name in ax.get_yticklabels():
+            feature_name_short = feature_name.get_text().split('=')[0]
+            feature_tick_name = []
+            for feature in feature_name_short.split(split_symbol):
+                if feature in negative_regulators:
+                    feature_tick_name.append(r"$\bf{"+feature+"}$")
+                else:
+                    feature_tick_name.append(feature)
+            tick_labels.append(split_symbol.join(feature_tick_name))
+        ax.set_yticks(ticks = np.arange(len(feature_names)), 
+                labels = tick_labels);
+        ax.set_title(condition_name,  weight='bold')
 
-    fig.savefig(os.path.join(path_to_save, "barplot_"+condition_name.replace(' ', '_')+"."+format), bbox_inches='tight', format=format)
+        if path_to_save is not None:
+            fig.savefig(os.path.join(path_to_save, "barplot_"+condition_name.replace(' ', '_')+"."+format), bbox_inches='tight', format=format)
 
 def plot_one_score_according_to_classif(df_data, LS_score_col, y_true, y_pred, sample_names, 
                                         return_classif=False, y_label=None):

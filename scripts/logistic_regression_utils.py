@@ -123,7 +123,8 @@ def train_logistic_all_conditions(datasets_per_condition, dataset_key = 'dataset
                                   parameters_lr={'solver': ['lbfgs', 'newton-cg', 'liblinear', 'sag', 'saga'], 
                                         'penalty': ['l2', 'l1', 'elasticnet'],
                                         'C': [100, 10, 1.0, 0.1, 0.01]}, min_train_size=10, top_features=40, save_path=None, exp_name='',  format='png', 
-                                  scoring='f1', random_state=1, max_iter=1000,  n_jobs=-1,  cv=20,  verbose=1,  n_iter=75):
+                                  scoring='f1', random_state=1, max_iter=1000,  n_jobs=-1,  cv=20,  verbose=1,  n_iter=75, 
+                                  print_report = True):
     
     """Based on a dictionnary containing datasets for multiple treatments/conditions, find the best models through Random Search, train them and
     plot the resulting learning curves and coefficients for each treatment/condition.
@@ -183,8 +184,9 @@ def train_logistic_all_conditions(datasets_per_condition, dataset_key = 'dataset
                                                                                         y_test.values.astype(int)))), 
                                                                         index=['scores', 'pvalues'], 
                                                                         columns=X_train.columns).T
-        print("-----------------", conditions_names[i], "-----------------")
-        print(datasets_per_condition[condition]['logit_scores'+suffix])
+        if print_report: 
+            print("-----------------", conditions_names[i], "-----------------")
+            print(datasets_per_condition[condition]['logit_scores'+suffix])
         
     if include_plots:
         plot_curves_all_conditions(datasets_per_condition,
