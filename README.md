@@ -28,7 +28,7 @@ Bioconductor version 3.16 (BiocManager 1.30.19), R 4.2.2 (2022-10-31)
 
 ### Python
 The python requirements are listed in `python_requirements.txt`. 
-To run the jupyter notebook, create a python environment with [conda](https://docs.conda.io/en/latest/) by running the command `conda create --name <env_name> --file python_requirements.txt` (tested on osx-64). Then, you can activate the environment by running `conda activate <env_name>`.
+To run the jupyter notebook, create a python environment with [conda](https://docs.conda.io/en/latest/) by running the command `conda create --name <env_name> --file python_requirements.txt` (tested on osx-64). You can then activate the environment by running `conda activate <env_name>`.
 
 
 ## Repo Content
