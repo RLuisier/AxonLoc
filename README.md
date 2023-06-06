@@ -6,7 +6,8 @@
 -   [Samples description](#Samples_description)
 
 ## Dependencies
-The following packages should be installed:
+### R
+The following R packages should be installed:
 GenomicRanges_1.50.2
 Rsamtools_2.14.0
 rtracklayer_1.58.0
@@ -24,6 +25,10 @@ fitdistrplus_1.1-8
 GO.db_3.16.0 
 
 Bioconductor version 3.16 (BiocManager 1.30.19), R 4.2.2 (2022-10-31)
+
+### Python
+The python requirements are listed in `python_requirements.txt`. 
+To run the jupyter notebook, create a python environment with conda by running the command `conda create --name <env> --file python_requirements.txt`.
 
 
 ## Repo Content
