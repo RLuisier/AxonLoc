@@ -658,7 +658,10 @@ def plot_common_and_specific_regulators_zscores(datasets_per_condition,
                                          format='png', 
                                          palette_conditions=None,
                                          transparent=True, 
-                                         return_groups=False):
+                                         return_groups=False, 
+                                         xlim_common=(-5, 0), 
+                                         x_lim_model1=(-4.5, 0), 
+                                         x_lim_model2=(-4, 1)):
     """
 
     Args:
@@ -676,6 +679,9 @@ def plot_common_and_specific_regulators_zscores(datasets_per_condition,
         Has to be an item contained in consitions_names or in keys of datasets_per_condition if conditions_names is None. Defaults to None.
         n_permutations (int, optional): Number of permutations to perform to create the null distributions. Default to 2000.
         sig_threshold (float, optional): Significance threshold.
+        x_lim_common (tuple, optional): xlim for the plot of negative common regulators
+        y_lim_model1 (tuple, optional): xlim for the plot of negative regulators of model 1
+        y_lim_model2 (tuple, optional): xlim for the plot of negative regulators of model 2
     """
     if conditions_names is None:
         conditions_names = list(datasets_per_condition.keys())
@@ -699,36 +705,51 @@ def plot_common_and_specific_regulators_zscores(datasets_per_condition,
 
     plt.figure(figsize=(14, 21))
     plt.subplot(321)
-    if len(pos_common) > 0:
-        plot_zscores(pos_common, feature_name=feature_name, ascending=False, palette=palette_conditions)
-    plt.title("Common positive regulators", weight='bold', fontsize=17)
-    plt.ylabel(None)
-    plt.subplot(322)
     if len(neg_common) > 0:
         plot_zscores(neg_common, feature_name=feature_name, ascending=True, palette=palette_conditions)
     plt.title("Common negative regulators", weight='bold', fontsize=17)
     plt.ylabel(None)
-    plt.subplot(323)
-    if len(merged_stats.loc[list(model1_specific[model1_specific['z_score'] > 0].index)]):
-        plot_zscores(merged_stats.loc[list(model1_specific[model1_specific['z_score'] > 0].index)], feature_name=feature_name, ascending=False, palette=palette_conditions)
-    plt.title(model1_name+"-specific positive regulators", weight='bold', fontsize=17)
+    plt.xlim(xlim_common)
+    plt.subplot(322)
+    if len(pos_common) > 0:
+        plot_zscores(pos_common, feature_name=feature_name, ascending=False, palette=palette_conditions)
+    plt.title("Common positive regulators", weight='bold', fontsize=17)
     plt.ylabel(None)
-    plt.subplot(324)
+    plt.xlim(-xlim_common[1], -xlim_common[0])
+
+    plt.subplot(323)
     if len(merged_stats.loc[list(model1_specific[model1_specific['z_score'] < 0].index)]):
         plot_zscores(merged_stats.loc[list(model1_specific[model1_specific['z_score'] < 0].index)], feature_name=feature_name, ascending=True, palette=palette_conditions)
     plt.title(model1_name+"-specific negative regulators", weight='bold', fontsize=17)
     plt.ylabel(None)
-    plt.subplot(325)
-    if len(merged_stats.loc[list(model2_specific[model2_specific['z_score'] > 0].index)]):
-        plot_zscores(merged_stats.loc[list(model2_specific[model2_specific['z_score'] > 0].index)], feature_name=feature_name, ascending=False, palette=palette_conditions)
-    plt.title(model2_name+"-specific positive regulators", weight='bold', fontsize=17)
+    plt.xlim(x_lim_model1)
+    plt.subplot(324)
+    if len(merged_stats.loc[list(model1_specific[model1_specific['z_score'] > 0].index)]):
+        plot_zscores(merged_stats.loc[list(model1_specific[model1_specific['z_score'] > 0].index)], feature_name=feature_name, ascending=False, palette=palette_conditions)
+    plt.title(model1_name+"-specific positive regulators", weight='bold', fontsize=17)
     plt.ylabel(None)
-    plt.subplot(326)
+    plt.xlim(-x_lim_model1[1], -x_lim_model1[0])
+
+    plt.subplot(325)
     if len(merged_stats.loc[list(model2_specific[model2_specific['z_score'] < 0].index)]):
         plot_zscores(merged_stats.loc[list(model2_specific[model2_specific['z_score'] < 0].index)], feature_name=feature_name, ascending=True, palette=palette_conditions)
     plt.title(model2_name+"-specific negative regulators", weight='bold', fontsize=17)
     plt.ylabel(None)
+    plt.xlim(x_lim_model2)
+    plt.subplot(326)
+    if len(merged_stats.loc[list(model2_specific[model2_specific['z_score'] > 0].index)]):
+        plot_zscores(merged_stats.loc[list(model2_specific[model2_specific['z_score'] > 0].index)], feature_name=feature_name, ascending=False, palette=palette_conditions)
+    plt.title(model2_name+"-specific positive regulators", weight='bold', fontsize=17)
+    plt.ylabel(None)
+    plt.xlim(-x_lim_model2[1], -x_lim_model2[0])
+ 
     plt.tight_layout()
+
+    if save_path is not None:
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+        plt.savefig(os.path.join(save_path, "significant_regulators_zscores."+format), 
+                    format=format, bbox_inches='tight', transparent=transparent) 
     
     if return_groups:
         dic_summary = {}
@@ -738,13 +759,7 @@ def plot_common_and_specific_regulators_zscores(datasets_per_condition,
         dic_summary[f"Negative {model1_name}-specific"] = merged_stats.loc[list(model1_specific[model1_specific['z_score'] < 0].index)]
         dic_summary[f"Positive {model2_name}-specific"] = merged_stats.loc[list(model2_specific[model2_specific['z_score'] > 0].index)]
         dic_summary[f"Negative {model2_name}-specific"] = merged_stats.loc[list(model2_specific[model2_specific['z_score'] < 0].index)]
-        return dic_summary
-    
-    if save_path is not None:
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-        plt.savefig(os.path.join(save_path, "significant_regulators_zscores."+format), 
-                    format=format, bbox_inches='tight', transparent=transparent)      
+        return dic_summary    
         
         
 # def plot_stats_difference_between_models(stats, model1_name='model 1', model2_name='model 2', palette=None, sig_threshold=0.05, feature_name = 'feature'):

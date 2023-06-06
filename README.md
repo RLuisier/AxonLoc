@@ -52,6 +52,9 @@ Regulation of APA is presented [HERE](https://htmlpreview.github.io/?https://git
 ### 5. Axonal versus cell body compartments
 The analysis of the compartment-specific mRNA pools and factors underlying axonal localisation is presented [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/Analysis_compartment.html).
 
+### 6. Synergistic regulatory potential of RBPs in axonal localisation
+The analysis of the synergistic regulatory potential of RBPs in axonal localisation in presented [HERE]().
+
 
 
 
