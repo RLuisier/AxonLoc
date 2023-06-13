@@ -1,0 +1,57 @@
+---
+title: "Analysis of axonal remodelling in different neurotrophic conditions"
+author: "Raphaelle Luisier, Idiap Research Institute"
+date: "February 2023"
+output:
+  html_document:
+    theme: paper
+#paper readable
+    highlight: monochrome
+    code_folding: hide
+    toc: true
+    toc_depth: 2
+#    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(cache =TRUE)
+knitr::opts_chunk$set(fig.width=16, fig.height=10, figure.align = "center") 
+require("edgeR")
+require("GO.db")
+require("limma")
+require("topGO")
+require("biomaRt")
+require("org.Rn.eg.db")
+library(grDevices)
+library(Rsamtools)
+library(IRanges)
+library(GenomicRanges)
+library(rtracklayer)
+library(geneplotter)
+require("multtest")
+require("mclust")
+
+rm(list = ls())
+```
+
+# Load the data {.tabset}
+3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
+
+```{r load_data_load_scripts}
+#load("./data/myfiles.RData")#"anno_tot","myUTR"
+#myUTR        <- import.gff("./data/myUTR.sorted.gtf",format="gtf")
+#anno_tot     <- read.delim("./data/anno_tot.tab",header=TRUE,sep="\t")
+#names(myUTR)  <- as.character(myUTR$ID)
+#source("./scripts/nested_fun_differential_PAS.R")
+
+load("~/Desktop/DataAnalsyisRiccio/NGFvsNT3/files_analysis.RData")
+outdir               <- "~/Desktop/DataAnalsyisRiccio/NGFvsNT3/Differential_APA_axons"
+dir.create(outdir)
+coloi                <- c("NGF.axon.1.raw.corrected","NGF.axon.2.raw.corrected","NT3.axon.1.raw.corrected","NT3.axon.2.raw.corrected")
+myUTR        <- import.gff("~/Desktop/DataAnalsyisRiccio/Dec2016/utrid/APA_stringent/Ltot_sub_2017.gtf",format="gtf")
+names(myUTR) <- as.character(myUTR$ID)
+
+```

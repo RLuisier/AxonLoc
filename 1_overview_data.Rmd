@@ -86,19 +86,19 @@ SelectExpressed <- function(dat=log2(htseq[,1]+1),frac.bg=0.6,frac.fg=0.1){
   return(c(Lim.bg,Lim.fg))
 }
 
+#Selection of reliably expressed 3' UTR
+#par(mfrow=c(2,4))
+#mydat<-data.sum
+#for(i in c(1:ncol(mydat))){
+#  mydat[,i] <- log2(data.sum[,i]+1)
+#}
+#lims      <- apply(mydat,2,function(Z)2^SelectExpressed(dat=Z,frac.bg=0.999,frac.fg=0.1))
 
-par(mfrow=c(2,4))
-mydat<-data.sum
-for(i in c(1:ncol(mydat))){
-  mydat[,i] <- log2(data.sum[,i]+1)
-}
-lims      <- apply(mydat,2,function(Z)2^SelectExpressed(dat=Z,frac.bg=0.999,frac.fg=0.1))
-
-tempsel   <- apply(data.sum,2,function(Z)return(Z>=mean(lims[1,c(1,2)])))
-soft.sel  <- cbind(tempsel[,1]&tempsel[,2],tempsel[,3]&tempsel[,4])
-tempsel   <- do.call(what=cbind,lapply(c(1:4),function(Z)return(data.sum[,Z]>=lims[2,Z])))
-hard.sel  <- cbind(tempsel[,1]|tempsel[,2],tempsel[,3]|tempsel[,4])
-final.sel <- cbind(soft.sel[,1]|hard.sel[,1],soft.sel[,2]|hard.sel[,2])
+#tempsel   <- apply(data.sum,2,function(Z)return(Z>=mean(lims[1,c(1,2)])))
+#soft.sel  <- cbind(tempsel[,1]&tempsel[,2],tempsel[,3]&tempsel[,4])
+#tempsel   <- do.call(what=cbind,lapply(c(1:4),function(Z)return(data.sum[,Z]>=lims[2,Z])))
+#hard.sel  <- cbind(tempsel[,1]|tempsel[,2],tempsel[,3]|tempsel[,4])
+#final.sel <- cbind(soft.sel[,1]|hard.sel[,1],soft.sel[,2]|hard.sel[,2])
 
 ```
 

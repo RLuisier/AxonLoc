@@ -1,17 +1,22 @@
 ---
-title: "Axonal Localisation Score"
-author: "Raphaëlle Luisier"
-date: "Idiap Research Institute -- February 2023"
+title: "Modelling of axonal locasation"
+author: "Raphaelle Luisier, Idiap Research Institute"
+date: "February 2023"
 output:
-  github_document:
+  html_document:
+    theme: paper
+#paper readable
+    highlight: monochrome
+    code_folding: hide
     toc: true
-    toc_depth: 3
-    dev: jpeg
+    toc_depth: 2
+#    toc_float: true
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
-working_dir = "~/Documents/Scripts/AxonLoc/"
-setwd(working_dir)
+#working_dir = "~/Documents/Scripts/AxonLoc/"
+#setwd(working_dir)
 
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(fig.width=16, fig.height=10, figure.align = "center") 
@@ -51,6 +56,8 @@ Interestingly, transcripts that are highly expressed in cell bodies are not nece
 
 First load the data.
 
+# Load the data
+3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
 
 
 ```{r load_data,echo=FALSE}
@@ -67,8 +74,7 @@ colNGF <- c("#81A4D6",rgb(129/255,164/255,214/255,0.25))
 colNT3 <- c("#AE72B0",rgb(174/255,114/255,176/255,0.25))
 ```
 
-
-Next select the reliably expressed 3' UTR isoforms fit fitting binomial distribution.
+Next select the reliably expressed 3' UTR isoforms and fit a binomial distribution.
 
 ```{r select_reliably_expressed,echo=TRUE}
 par(mfrow=c(2,4))
@@ -192,7 +198,7 @@ points(avg.ngf.cb,pdt,pch=19,col=rgb(1,0,0,0.1),cex=0.2)
 ```
 We next use use a Bayesian approach to get a localisation score with positive values indicating over-transport and negative values indicating under-transport.  We first group 3' UTR isoforms of  similar expression level in the CB and of similar transcript length together. Assuming that isoforms within a group should exhibit similar expression in the cell body, of mean and standard-deviation derived from the linear model learned in the previous step. For each 3' UTR isoform, we calculate the likelihood of axonal read count higher or lower than the observed read counts given the prior distribution.
 
-```{r transport_locasation,echo=TRUE}
+```{r transport_locasation,echo=TRUE,eval=FALSE}
 #Extract the probability of each data-point being generated to identify those which are under- or over-transported
 
 #A. Fit polynomial of degree 4 to each data-set
@@ -299,102 +305,6 @@ transport <- data.frame(uniqueIDs=rownames(myOut.ngf),
                                            anno_tot$NT3.cb.2.raw.corrected[match(rownames(myOut.ngf),anno_tot$uniqueID)],
                                            anno_tot$NT3.axon.1.raw.corrected[match(rownames(myOut.ngf),anno_tot$uniqueID)],
                                            anno_tot$NT3.axon.2.raw.corrected[match(rownames(myOut.ngf),anno_tot$uniqueID)])
-```
-
-Let's now check that the axonal localisation score does not depend on the read count in cell body. 
-
-```{r stats_localisation_scores,echo=TRUE}
-par(mfrow=c(2,2))
-hist(myOut.ngf$p.value.norm,col=rgb(129/255,164/255,214/255,0.5),breaks=20,las=1,cex.lab=0.7,cex.axis=0.7,xlim=c(-4,4),main="")
-hist(myOut.nt3$p.value.norm,col=rgb(175/255,113/255,175/255,1.0),breaks=20,las=1,cex.lab=0.7,cex.axis=0.7,xlim=c(-4,4),main="")
-
-BY=0.5
-plot(myOut.ngf$avg.ngf.cb,myOut.ngf$p.value.norm,pch=19,col=rgb(0,0,0,0.1),cex=0.2,xlab="",ylab="",las=1,main="",frame=F,xlim=c(0,20),ylim=c(-4,4),cex.lab=0.7,cex.axis=0.7)
-grid()
-myY<-tapply(myOut.ngf$p.value.norm,cut(myOut.ngf$avg.ngf.cb,breaks=seq(from=min(myOut.ngf$avg.ngf.cb),to=max(myOut.ngf$avg.ngf.cb),by=BY),include.lowest=T),FUN=function(W)return(mean(W,na.rm=TRUE)))
-myX<- seq(from=min(myOut.ngf$avg.ngf.cb),to=max(myOut.ngf$avg.ngf.cb),by=BY)[-1]
-lines(myX,myY,col="red")
-mtext(side=1,line=2,text="avg.ngf,cb [log2]",cex=0.7)
-mtext(side=2,line=3,text="transport efficiency",cex=0.7)
-
-plot(myOut.nt3$avg.nt3.cb,myOut.nt3$p.value.norm,pch=19,col=rgb(0,0,0,0.1),cex=0.2,xlab="",ylab="",las=1,main="",frame=F,xlim=c(0,20),ylim=c(-4,4),cex.lab=0.7,cex.axis=0.7,)
-grid()
-myY<-tapply(myOut.nt3$p.value.norm,cut(myOut.nt3$avg.nt3.cb,breaks=seq(from=min(myOut.nt3$avg.nt3.cb),to=max(myOut.nt3$avg.nt3.cb),by=BY),include.lowest=T),FUN=function(W)return(mean(W,na.rm=TRUE)))
-myX<- seq(from=min(myOut.nt3$avg.nt3.cb),to=max(myOut.nt3$avg.nt3.cb),by=BY)[-1]
-lines(myX,myY,col="red")
-mtext(side=1,line=2,text="avg.nt3,cb [log2]",cex=0.7)
-mtext(side=2,line=3,text="transport efficiency",cex=0.7)
-grid()
-
-par(mfrow=c(1,1))
-plot(myOut.ngf$p.value.norm,myOut.nt3$p.value.norm,pch=19,col=rgb(0,0,0,0.2),cex=0.2,las=1,cex.lab=0.7,cex.axis=0.7,frame=F,xlim=c(-4,4),ylim=c(-4,4))
-grid()
-mtext(side=1,line=2,text="transport efficiency NGF",cex=0.7)
-mtext(side=2,line=2,text="transport efficiency NT3",cex=0.7)
-
-```
-
-```{r check_no_dependency_on_expression,echo=TRUE}
-#Check that the new statistic does not depend on the level of expression in CB
-par(mar=c(3,4,3,2))
-nf <- layout(matrix(c(1,1,2,3),2,2,byrow = TRUE), TRUE)
-hist(myOut.ngf$p.value.norm,xlim=c(-4,4),prob=T,las=1,col=rgb(0,0,0,0.9),breaks=30,main="",xlab="",ylab="")
-mtext(side=1,line=2,text="-log10(P-value)",cex=0.7)
-mtext(side=2,line=3,text="Probability",cex=0.7)
-mtext(side=3,line=1,text="NGF",cex=0.7)
-
-plot(myOut.ngf$avg.ngf.cb,myOut.ngf$RUD,pch=19,col=rgb(0,0,0,0.1),cex=0.2,xlab="",ylab="",las=1,main="",frame=F,xlim=c(0,20),ylim=c(-13,8))
-grid()
-myY<-tapply(myOut.ngf$RUD,cut(myOut.ngf$avg.ngf.cb,breaks=seq(from=min(myOut.ngf$avg.ngf.cb),to=max(myOut.ngf$avg.ngf.cb),by=0.2),include.lowest=T),FUN=mean)
-myX<- seq(from=min(myOut.ngf$avg.ngf.cb),to=max(myOut.ngf$avg.ngf.cb),by=0.2)[-1]
-lines(myX,myY,col="red")
-mtext(side=1,line=2,text="avg.ngf,cb [log2]",cex=0.7)
-mtext(side=2,line=3,text="log2(axons/cb)",cex=0.7)
-
-
-plot(myOut.ngf$avg.ngf.cb,myOut.ngf$p.value.norm,pch=19,col=rgb(0,0,0,0.1),cex=0.2,xlab="",ylab="",las=1,main="",frame=F,xlim=c(0,20),ylim=c(-4,4))
-grid()
-myY<-tapply(myOut.ngf$p.value.norm,cut(myOut.ngf$avg.ngf.cb,breaks=seq(from=min(myOut.ngf$avg.ngf.cb),to=max(myOut.ngf$avg.ngf.cb),by=0.2),include.lowest=T),FUN=function(W)return(mean(W,na.rm=TRUE)))
-myX<- seq(from=min(myOut.ngf$avg.ngf.cb),to=max(myOut.ngf$avg.ngf.cb),by=0.2)[-1]
-lines(myX,myY,col="red")
-mtext(side=1,line=2,text="avg.ngf,cb [log2]",cex=0.7)
-mtext(side=2,line=3,text="-log10(P-value) -- Normal distribution",cex=0.7)
-
-
-
-par(mar=c(3,4,3,2))
-#nf <- layout(matrix(c(2,0,1,3),2,2,byrow = TRUE), c(3,1), c(1,3), TRUE)
-#layout.show(nf)
-nf <- layout(matrix(c(1,1,2,3),2,2,byrow = TRUE), TRUE)
-hist(myOut.nt3$p.value.norm,xlim=c(-4,4),prob=T,las=1,col=rgb(0,0,0,0.9),breaks=30,main="",xlab="",ylab="")
-mtext(side=1,line=2,text="-log10(P-value)",cex=0.7)
-mtext(side=2,line=3,text="Probability",cex=0.7)
-mtext(side=3,line=1,text="NT3",cex=0.7)
-
-plot(myOut.nt3$avg.nt3.cb,myOut.nt3$RUD,pch=19,col=rgb(0,0,0,0.1),cex=0.2,xlab="",ylab="",las=1,main="",frame=F,xlim=c(0,20),ylim=c(-13,8))
-grid()
-myY<-tapply(myOut.nt3$RUD,cut(myOut.nt3$avg.nt3.cb,breaks=seq(from=min(myOut.nt3$avg.nt3.cb),to=max(myOut.nt3$avg.nt3.cb),by=0.2),include.lowest=T),FUN=mean)
-myX<- seq(from=min(myOut.nt3$avg.nt3.cb),to=max(myOut.nt3$avg.nt3.cb),by=0.2)[-1]
-lines(myX,myY,col="red")
-mtext(side=1,line=2,text="avg.nt3,cb [log2]",cex=0.7)
-mtext(side=2,line=3,text="log2(axons/cb)",cex=0.7)
-
-
-plot(myOut.nt3$avg.nt3.cb,myOut.nt3$p.value.norm,pch=19,col=rgb(0,0,0,0.1),cex=0.2,xlab="",ylab="",las=1,main="",frame=F,xlim=c(0,20),ylim=c(-4,4))
-grid()
-myY<-tapply(myOut.nt3$p.value.norm,cut(myOut.nt3$avg.nt3.cb,breaks=seq(from=min(myOut.nt3$avg.nt3.cb),to=max(myOut.nt3$avg.nt3.cb),by=0.2),include.lowest=T),FUN=function(W)return(mean(W,na.rm=TRUE)))
-myX<- seq(from=min(myOut.nt3$avg.nt3.cb),to=max(myOut.nt3$avg.nt3.cb),by=0.2)[-1]
-lines(myX,myY,col="red")
-mtext(side=1,line=2,text="avg.nt3,cb [log2]",cex=0.7)
-mtext(side=2,line=3,text="-log10(P-value) -- Normal distribution",cex=0.7)
-
-
-```
-
-
-We can now identify those 3' UTR isoforms which are over-transported in NGF and NT3.
-
-```{r identify_over_under_transported,echo=TRUE}
 transport             <- transport[!is.na(transport$transport.ngf),]
 mygr                 <- myUTR[match(transport$uniqueIDs,myUTR$ID),]
 transport$wL         <- width(mygr)
@@ -407,8 +317,49 @@ tempax <- do.call(what=rbind,args=lapply(c(1:nrow(transport)),function(ix){
 transport$tranport.ngf.longer=tempax[,1]
 transport$tranport.nt3.longer=tempax[,2]
 transport$diff_transport_longer=tempax[,1]-tempax[,2]
+#write.csv(transport,"./data/transport.csv")
+```
+
+Let's now check that the axonal localisation score does not depend on the read count in cell body. 
+
+```{r stats_localisation_scores,echo=TRUE}
+
+transport <- read.csv("./data/transport.csv")
+par(mfrow=c(3,4))
+hist(transport$transport.ngf,col=rgb(129/255,164/255,214/255,0.5),breaks=20,las=1,cex.lab=0.7,cex.axis=0.7,xlim=c(-4,4),main="",xlab="localisation score [NGF]")
+hist(transport$transport.nt3,col=rgb(175/255,113/255,175/255,1.0),breaks=20,las=1,cex.lab=0.7,cex.axis=0.7,xlim=c(-4,4),main="",xlab="localisation score [NT3]")
+
+PlotWithAVG <- function(myxval=transport$cb.ngf,myyval=transport$transport.ngf,myxlab="avg.ngf,cb [log2]",myylab="transport efficiency",myylim=c(-4,4),myxlim=c(0,20)){
+  BY=0.5
+  plot(myxval,myyval,pch=19,col=rgb(0,0,0,0.1),cex=0.2,xlab="",ylab="",las=1,main="",frame=F,xlim=myxlim,ylim=myylim,cex.lab=0.7,cex.axis=0.7)
+  grid()
+  myY<-tapply(myyval,cut(myxval,breaks=seq(from=min(myxval),to=max(myxval),by=BY),include.lowest=T),FUN=function(W)return(mean(W,na.rm=TRUE)))
+  myX<- seq(from=min(myxval),to=max(myxval),by=BY)[-1]
+  lines(myX,myY,col="red")
+  mtext(side=1,line=2,text=myxlab,cex=0.7)
+  mtext(side=2,line=3,text=myylab,cex=0.7)
+}
+
+PlotWithAVG(myxval=transport$cb.ngf,myyval=transport$transport.ngf,myxlab="avg.ngf,cb [log2]",myylab="transport efficiency",myylim=c(-4,4),myxlim=c(0,20))
+PlotWithAVG(myxval=transport$cb.ngf,myyval=transport$RUD.ngf,myxlab="avg.ngf.cb [log2]",myylab="log2(AX/CB)",myylim=c(-10,4),myxlim=c(0,20))
+
+PlotWithAVG(myxval=transport$cb.nt3,myyval=transport$transport.nt3,myxlab="avg.cb [log2] in NT3",myylab="transport efficiency",myylim=c(-4,4),myxlim=c(0,20))
+PlotWithAVG(myxval=transport$cb.nt3,myyval=transport$RUD.nt3,myxlab="avg.cb [log2] in NT3",myylab="log2(AX/CB)",myylim=c(-10,4),myxlim=c(0,20))
+
+PlotWithAVG(myxval=log10(transport$wL),myyval=transport$transport.ngf,myxlab="avg.ngf,cb [log2]",myylab="transport efficiency",myylim=c(-4,4),myxlim=c(0,20))
+PlotWithAVG(myxval=log10(transport$wL),myyval=transport$RUD.ngf,myxlab="avg.ngf.cb [log2]",myylab="log2(AX/CB)",myylim=c(-10,4),myxlim=c(0,20))
+
+PlotWithAVG(myxval=log10(transport$wL),myyval=transport$transport.nt3,myxlab="avg.cb [log2] in NT3",myylab="transport efficiency",myylim=c(-4,4),myxlim=c(0,20))
+PlotWithAVG(myxval=log10(transport$wL),myyval=transport$RUD.nt3,myxlab="avg.cb [log2] in NT3",myylab="log2(AX/CB)",myylim=c(-10,4),myxlim=c(0,20))
 
 
+```
+
+
+
+We can now identify those 3' UTR isoforms which are over-transported in NGF and NT3.
+
+```{r identify_over_under_transported,echo=TRUE}
 
 #A. More transported in NGF axons (avoid selecting candidate of axonal remodeling i.e. transport longer should as well be in the same direction)
 #Should be more transported in NGF samples

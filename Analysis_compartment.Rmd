@@ -1,5 +1,5 @@
 ---
-title: "Compartment-specificy and axonal localisation"
+title: "Compartment-specificity of the transcriptome in NT3 and NGF conditions"
 author: "Raphaelle Luisier, Idiap Research Institute"
 date: "February 2023"
 output:
@@ -220,25 +220,25 @@ ax.nt3 <- unique(anno_tot$txID[anno_tot$detect.txID.nt3=="both"])#5'526
 comp.cb <- list(intersect(cb.ngf,cb.nt3),setdiff(cb.ngf,cb.nt3),setdiff(cb.nt3,cb.ngf))
 comp.ax <- list(intersect(ax.ngf,ax.nt3),setdiff(ax.ngf,ax.nt3),setdiff(ax.nt3,ax.ngf))
 
-
+col_treatment <- c("grey","#81A4D6","#AE72B0")
 par(mfrow=c(1,4))
 
-mp<-barplot(unlist(lapply(comp.cb.i,length)),las=1,ylim=c(0,30000),col=mycols[1],cex.axis=0.7)
+mp<-barplot(unlist(lapply(comp.cb.i,length)),las=1,ylim=c(0,30000),col=col_treatment,cex.axis=0.7)
 mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
 mtext(side=3,line=0,text=unlist(lapply(comp.cb.i,length)),at=mp,cex=0.7)
 mtext(side=2,line=2,text="# transcript ID detected in CB",cex=0.7)
 
-mp<-barplot(unlist(lapply(comp.ax.i,length)),las=1,ylim=c(0,30000),col=mycols[2],cex.axis=0.7)
+mp<-barplot(unlist(lapply(comp.ax.i,length)),las=1,ylim=c(0,6000),col=col_treatment,cex.axis=0.7)
 mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
 mtext(side=3,line=0,text=unlist(lapply(comp.ax.i,length)),at=mp,cex=0.7)
 mtext(side=2,line=2,text="# 3' UTR isoforms detected in axons",cex=0.7)
 
-mp<-barplot(unlist(lapply(comp.cb,length)),las=1,ylim=c(0,14000),col=mycols[1],cex.axis=0.7)
+mp<-barplot(unlist(lapply(comp.cb,length)),las=1,ylim=c(0,6000),col=col_treatment,cex.axis=0.7)
 mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
 mtext(side=3,line=0,text=unlist(lapply(comp.cb,length)),at=mp,cex=0.7)
 mtext(side=2,line=2,text="# transcript ID detected in CB",cex=0.7)
 
-mp<-barplot(unlist(lapply(comp.ax,length)),las=1,ylim=c(0,14000),col=mycols[2],cex.axis=0.7)
+mp<-barplot(unlist(lapply(comp.ax,length)),las=1,ylim=c(0,6000),col=col_treatment,cex.axis=0.7)
 mtext(side=1,line=0,text=c("both","NGF only","NT3 only"),at=mp,cex=0.7)
 mtext(side=3,line=0,text=unlist(lapply(comp.ax,length)),at=mp,cex=0.7)
 mtext(side=2,line=2,text="# transcript ID detected in axons",cex=0.7)
@@ -434,4 +434,138 @@ mtext(side=1,line=1,at=c(2,5),text=c("NGF","NT3"),cex=0.7)
 
 ```
 
-# Biological pathway enrichment analysis
+# Comparison of the NGF and NT3 axonal transcriptome
+Here we study the differences in the axonal transcriptome between NGF and NT3 conditions.
+
+```{r GO_analysis_tx_uniquely_localised,warning=FALSE,fig.width=10, fig.height=4,eval=FALSE}
+t2g                     <- read.csv("~/Desktop/DataAnalsyisRiccio/t2g_biomaRt.csv")
+txID2GO                 <- tapply(t2g$ensembl_transcript_id,INDEX=t2g$go_id,FUN=function(x)return(x))
+noNodes                 <- 300
+
+mysampleGO.cb           <- lapply(comp.cb,function(Z){
+  geneNames              <- unique(t2g$ensembl_transcript_id)
+  geneList               <- factor(as.integer(geneNames %in% Z))
+  names(geneList)        <- geneNames
+  return(new("topGOdata",description = "Simple session", ontology = "BP",allGenes = geneList, geneSel = Z,nodeSize = 10,annot = annFUN.GO2genes,GO2gene=txID2GO))
+})
+
+mysampleGO.ax           <- lapply(comp.ax,function(Z){
+  geneNames              <- unique(t2g$ensembl_transcript_id)
+  geneList               <- factor(as.integer(geneNames %in% Z))
+  names(geneList)        <- geneNames
+  return(new("topGOdata",description = "Simple session", ontology = "BP",allGenes = geneList, geneSel = Z,nodeSize = 10,annot = annFUN.GO2genes,GO2gene=txID2GO))
+})
+
+GetGOI <- function(sampleGO=temp.sampleGO,mygoID=as.character(temp$GO.ID)[1]){
+  entrez.oi       <- intersect(genesInTerm(sampleGO, mygoID)[[1]],sigGenes(sampleGO))
+  gs.oi           <- unique(as.character(t2g$external_gene_name[match(entrez.oi,t2g$ensembl_transcript_id)]))
+  return(paste(gs.oi, collapse = ', '))
+}
+
+
+
+tardir<- "./zenodo/compart/enrichment/"
+Name   <- c("cb.both","cb.only.ngf","cb.only.nt3")
+myenrich            <- lapply(c(1:length(mysampleGO.cb)),function(Z){
+  
+  mysampleGO              <- mysampleGO.cb[[Z]]
+  resultFisher            <- runTest(mysampleGO, algorithm = "classic", statistic = "fisher")
+  resultFisher.weight01   <- runTest(mysampleGO, algorithm = "weight01", statistic = "fisher")
+  temp                    <- GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "classicFisher", ranksOf = "classicFisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"Fisher_",Name[Z],".csv",sep=""))
+  
+  temp                    <-GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "weight0Fisher", ranksOf = "weight0Fisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"W0_",Name[Z],".csv",sep=""))
+  
+})
+
+Name   <- c("ax.both","ax.only.ngf","ax.only.nt3")
+myenrich            <- lapply(c(1:length(mysampleGO.ax)),function(Z){
+  
+  mysampleGO              <- mysampleGO.ax[[Z]]
+  resultFisher            <- runTest(mysampleGO, algorithm = "classic", statistic = "fisher")
+  resultFisher.weight01   <- runTest(mysampleGO, algorithm = "weight01", statistic = "fisher")
+  temp                    <- GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "classicFisher", ranksOf = "classicFisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"Fisher_",Name[Z],".csv",sep=""))
+  
+  temp                    <-GenTable(mysampleGO, classicFisher = resultFisher,weight0Fisher=resultFisher.weight01,orderBy = "weight0Fisher", ranksOf = "weight0Fisher", topNodes = noNodes)
+  temp                    <- temp[temp$Significant>5,]
+  temp                    <- data.frame(temp,GOI=unlist(lapply(as.character(temp$GO.ID),function(Z)return(GetGOI(sampleGO=mysampleGO,mygoID=Z)))))
+  write.csv(temp,file=paste(tardir,"W0_",Name[Z],".csv",sep=""))
+  
+})
+
+```
+
+```{r,characterise_axonal_pool,warning=FALSE,fig.width=10, fig.height=8}
+
+par(mfrow=c(2,4))
+
+layout(matrix(c(1,2,3,4,5,5,6,6),nrow=2,ncol=4,byrow = TRUE))
+mymat.notx <- rbind(c(length(cb.ngf),length(ax.ngf)),
+                    c(length(cb.nt3),length(ax.nt3)))
+colnames(mymat.notx) <- c("CB","AX")
+rownames(mymat.notx) <- c("NGF","NT3")
+mp<- barplot(t(mymat.notx),beside=TRUE,border=unlist(lapply(col_treatment[c(2,3)],function(Z)rep(Z,2))),col=c(col_treatment[2],"white",col_treatment[3],"white"),ylim=c(0,8000),ylab="# expressed txID",las=1)
+mtext(side=1,line=0,text=c("CB","AX"),at=as.vector(mp),cex=0.7)
+mtext(side=3,line=0,text=as.vector(mymat.notx),at=as.vector(mp),cex=0.7)
+
+venn(list(NT3=ax.nt3,NGF=ax.ngf))
+
+mp<-barplot(cbind(with.multiple.ngf*100,with.multiple.nt3*100),border=unlist(lapply(col_treatment[c(2,3)],function(Z)rep(Z,2))),col=c(col_treatment[2],"white",col_treatment[3],"white"),las=1,frame=F,beside=T,ylim=c(0,100))
+mtext(side=2,line=3,text="fraction of txID with multiple iso",cex=0.7)
+mtext(side=1,line=0,at=mp,text=c("NGF","NT3"),cex=0.7)
+legend("top",ncol=2,pch=15,col=mycols[c(1,2)],leg=c("CB","axons"),cex=0.7)
+mtext(side=3,line=0,text=c("P(Fisher):",pval_NGF,pval_NT3),at=c(0,2,5),cex=0.7)
+arrows(x0=1.0,y0=80,x1=3,y1=80,length = 0)
+arrows(x0=4,y0=80,x1=6,y1=80,length = 0)
+
+
+boxplot(c(utrL.nt3,utrL.ngf[-1]),outline=F,col=c("white",col_treatment[2],"white",col_treatment[3],"white"),las=1,frame=F,xaxt="n",ylim=c(0,10000),border=c("black","black",col_treatment[2],"black",col_treatment[3]))
+mtext(side=3,line=2,text=c(unlist(lapply(utrL.ngf,length)),unlist(lapply(utrL.nt3,length))),at=c(1:6),cex=0.5)
+mtext(side=3,line=0,at=c(-1,2.5,5.5),text=c("P(WT):",format(wilcox.test(utrL.ngf[[2]],utrL.ngf[[3]], paired=F)$p.value,scientific=TRUE,digit=1),format(wilcox.test(utrL.nt3[[2]],utrL.nt3[[3]], paired=F)$p.value,scientific=TRUE,digit=1)),cex=0.6)
+arrows(x0=1.8,y0=10000,x1=3.4,y1=10000,length = 0)
+arrows(x0=4.8,y0=10000,x1=6.4,y1=10000,length = 0)
+mtext(side=2,line=3,text="3' UTR length [nt]",cex=0.7)
+mtext(side=1,line=0,at=c(1:6),text=rep(c("Ens","CB","AX"),2),cex=0.7)
+mtext(side=1,line=1,at=c(2,5),text=c("NGF","NT3"),cex=0.7)
+
+
+#Compare the GO terms that are specific to Axons NGF versus NT3
+enrich_ngf <- read.csv("./zenodo/compart/enrichment/W0_ax.only.ngf_f.csv")
+enrich_nt3 <- read.csv("./zenodo/compart/enrichment/W0_ax.only.nt3_f.csv")
+terms_oi <- union(as.character(enrich_ngf$GO.ID[enrich_ngf$Significant>=10&enrich_ngf$weight0Fisher<=0.01]),
+                  as.character(enrich_nt3$GO.ID[enrich_nt3$Significant>=10&enrich_nt3$weight0Fisher<=0.01]))
+
+terms_oi <- union(as.character(enrich_ngf$GO.ID[enrich_ngf$Significant>=5&enrich_ngf$weight0Fisher<=0.01]),
+                  as.character(enrich_nt3$GO.ID[enrich_nt3$Significant>=5&enrich_nt3$weight0Fisher<=0.01]))
+enrich_ngf <- read.csv("./zenodo/compart/enrichment/W0_ax.only.ngf.csv")
+enrich_nt3 <- read.csv("./zenodo/compart/enrichment/W0_ax.only.nt3.csv")
+ix_ngf <- match(terms_oi,enrich_ngf$GO.ID)
+ix_nt3 <- match(terms_oi,enrich_nt3$GO.ID)
+temp                   <- cbind(as.character(enrich_ngf[ix_ngf,2]),as.character(enrich_ngf[ix_ngf,3]))
+temp[!is.na(ix_nt3),1] <- as.character(enrich_nt3[ix_nt3[!is.na(ix_nt3)],2])
+temp[!is.na(ix_nt3),2] <- as.character(enrich_nt3[ix_nt3[!is.na(ix_nt3)],3])
+temp                   <- data.frame(temp,NGF=ifelse(!is.na(ix_ngf),-log10(enrich_ngf$weight0Fisher[ix_ngf]),0))
+temp                   <- data.frame(temp,NT3=ifelse(!is.na(ix_nt3),-log10(enrich_nt3$weight0Fisher[ix_nt3]),0))
+vec_ngf         <- -log10(enrich_ngf$weight0Fisher[enrich_ngf$Significant>=5&enrich_ngf$weight0Fisher<=0.01])
+names(vec_ngf)  <- as.character(enrich_ngf$Term[enrich_ngf$Significant>=5&enrich_ngf$weight0Fisher<=0.01])
+vec_ngf         <- sort(vec_ngf,decreasing=TRUE)
+vec_nt3         <- -log10(enrich_nt3$weight0Fisher[enrich_nt3$Significant>=5&enrich_nt3$weight0Fisher<=0.01])
+names(vec_nt3)  <- as.character(enrich_nt3$Term[enrich_nt3$Significant>=5&enrich_nt3$weight0Fisher<=0.01])
+vec_nt3         <- sort(vec_nt3,decreasing=TRUE)
+barplot(rev(vec_ngf[c(1:5)]),col="#81A4D6",las=1,horiz=TRUE,cex.names=0.8)
+barplot(rev(vec_nt3[c(1:5)]),col="#AF72B0",las=1,horiz=TRUE,cex.names=0.8)
+```
+
+
+
+
+
+

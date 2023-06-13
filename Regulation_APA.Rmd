@@ -70,8 +70,7 @@ plotEnrichAlongUTRfocusMerged <- function(mots="CPSF160_iClip",sel=c(20:30),cond
     lines(myX,myId,col="grey",lwd=1.5)
     points(myX,myIp,col="black",pch=19)
     points(myX,myId,col="grey",pch=19)
-    mtext(side=2,line=2,text=mots,font=1,cex=0.5)
-    mtext(side=3,line=0,text="NGF",font=1,cex=0.5)
+    mtext(side=3,line=0,text=mots,font=1,cex=0.5)
   }
   
   
@@ -639,4 +638,113 @@ plotEnrichAlongUTRfocusMerged(mots="TIAL1_iClip",sel=c(20:30),cond="NGF")
 
 ```{r global_negative_regulators_APA_heatmap,warnings=FALSE,eval=TRUE,warning=FALSE,fig.width=4, fig.height=6}
 PlotHeatmapRegulators(mots=selMOTS,mymats=list(ttest_APA_NGF_Ip[,-1],-ttest_APA_NGF_Id[,-1]))
+```
+
+# Fisher enrichment analysis to detect RBPs enriched in specific subsest of isoforms
+
+```{r fisher_enrichment, eval=FALSE}
+myFG <- list(
+             fg_proxi_NGF <- as.character(read.csv("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_APA_cb/proxi_NGF_filtered_stringent.csv")$id.proximal),
+             fg_proxi_NT3 <- as.character(read.csv("./zenodo/apa/proxi_NT3_filtered_stringent.csv")$id.proximal),
+             fg_proxip_NGF <- as.character(read.csv("./zenodo/apa/dist_NGF_filtered_stringent.csv")$id.proximal),
+             fg_proxip_NT3 <- as.character(read.csv("./zenodo/apa/dist_NT3_filtered_stringent.csv")$id.proximal),
+             fg_dist_NGF <- as.character(read.csv("./zenodo/apa/dist_NGF_filtered_stringent.csv")$id.distal),
+             fg_dist_NT3 <- as.character(read.csv("./zenodo/apa/dist_NT3_filtered_stringent.csv")$id.distal),
+             fg_distp_NGF <- as.character(read.csv("./zenodo/apa/proxi_NGF_filtered_stringent.csv")$id.distal),
+             fg_distp_NT3 <- as.character(read.csv("./zenodo/apa/proxi_NT3_filtered_stringent.csv")$id.distal)
+             )
+
+
+FisherEnrichmentClipAPA <- function(myfg =myFG[[1]],myix=1){
+  myX     <- factor(ifelse(rownames(clipdat)%in%myfg,"FG","none"))
+  myY     <- factor(ifelse(clipdat[,myix]>0,"Bound","none"))
+  tempval <- (-log10(fisher.test(x=myX,y=myY)$p.value))
+  
+  frac_bg <- sum(myY=="Bound")/length(myY)
+  frac_fg <- sum(myX=="FG"&myY=="Bound")/sum(myX=="FG")
+  if(frac_fg>frac_bg)return(-log10(fisher.test(x=myX,y=myY)$p.value))
+  if(frac_fg<=frac_bg)return(log10(fisher.test(x=myX,y=myY)$p.value))
+  
+}  
+
+enrich_APA_cb_clip <- list()
+for(ix in c(1:length(mynames_rages))){
+  clipdat              <- myClips[[ix]]
+  mytempout            <- matrix(0,nrow=ncol(clipdat),ncol=8)
+  colnames(mytempout)  <- c("proxi_NGF","proxi_NT3","proxip_NGF","proxip_NT3","dist_NGF","dist_NT3","distp_NGF","distp_NT3")
+  rownames(mytempout)  <- colnames(clipdat)
+  
+  for(ix_fg in c(1:8)){
+    print(ix_fg)
+    mytempout[,ix_fg]<-unlist(lapply(c(1:ncol(clipdat)),function(ix_clip)return(FisherEnrichmentClipAPA(myfg =myFG[[ix_fg]],myix=ix_clip))))
+  }
+  enrich_APA_cb_clip[[ix]]<- mytempout
+  #write.csv(mytempout,paste("~/Desktop/DataAnalsyisRiccio/NGFvsNT3_Sep2017/Differential_APA_cb/",mynames_rages[ix],"enrich_clip.csv",sep=""))
+  print(ix)
+}
+
+save(list=c("enrich_APA_cb_clip"),file="./zenodo/apa/regulation/enrichment_fisher.RData")
+
+per_type<- lapply(c(1:8),function(IX){
+  temp          <-do.call(lapply(enrich_APA_cb_clip,function(Z)return(Z[,IX])),what=cbind)
+  colnames(temp)<-mynames_rages
+  rownames(temp)<-rownames(enrich_APA_cb_clip[[1]])
+  return(temp)
+})
+
+#Promoter-proximal shift in NGF -- regulators
+proximal_NGF<- union(sort(apply(per_type[[1]][,c(23:30)],1,function(Z)return(max(Z,na.rm=TRUE))),index.return=TRUE,decreasing=TRUE)$ix[c(1:15)],
+                     sort(apply(per_type[[7]][,c(23:30)],1,function(Z)return(max(Z,na.rm=TRUE))),index.return=TRUE,decreasing=TRUE)$ix[c(1:15)])
+
+
+#Promoter-distal shift in NGF -- regulators
+distal_NGF<- union(sort(apply(per_type[[3]][,c(23:30)],1,function(Z)return(max(Z,na.rm=TRUE))),index.return=TRUE,decreasing=TRUE)$ix[c(1:15)],
+                     sort(apply(per_type[[5]][,c(23:30)],1,function(Z)return(max(Z,na.rm=TRUE))),index.return=TRUE,decreasing=TRUE)$ix[c(1:15)])
+
+#Promoter-proximal shift in NT3 -- regulators
+proximal_NT3<- union(sort(apply(per_type[[2]][,c(23:30)],1,function(Z)return(max(Z,na.rm=TRUE))),index.return=TRUE,decreasing=TRUE)$ix[c(1:15)],
+                     sort(apply(per_type[[8]][,c(23:30)],1,function(Z)return(max(Z,na.rm=TRUE))),index.return=TRUE,decreasing=TRUE)$ix[c(1:15)])
+
+#Promoter-distal shift in NT3 -- regulators
+distal_NT3<- union(sort(apply(per_type[[4]][,c(23:30)],1,function(Z)return(max(Z,na.rm=TRUE))),index.return=TRUE,decreasing=TRUE)$ix[c(1:15)],
+                   sort(apply(per_type[[6]][,c(23:30)],1,function(Z)return(max(Z,na.rm=TRUE))),index.return=TRUE,decreasing=TRUE)$ix[c(1:15)])
+
+
+ExtractRegulators <- function(dat=per_type[[1]][,c(26:30)]){
+  vec1 <- apply(dat,1,function(Z)return(max(Z,na.rm=TRUE)))
+  vec1 <- vec1[vec1>=2.0]
+  return(names(vec1)[sort(vec1,decreasing=TRUE,index.return=TRUE)$ix[c(1:15)]])
+}
+
+###Regulators in Ip
+regulators_proximal<- list(proxi_NGF=ExtractRegulators(dat=per_type[[1]][,c(27:30)]),
+                           proxi_NT3=ExtractRegulators(dat=per_type[[2]][,c(27:30)]),
+                           dist_NGF=ExtractRegulators(dat=per_type[[3]][,c(27:30)]),
+                           dist_NT3=ExtractRegulators(dat=per_type[[4]][,c(27:30)])
+)
+allregs_prox           <- unique(unlist(regulators_proximal))
+allregs_prox           <- allregs_prox[!is.na(allregs_prox)]
+mat_regs              <- do.call(lapply(regulators_proximal,function(Z)return(ifelse(allregs_prox%in%Z,1,0))),what=cbind)
+rownames(mat_regs)<-allregs_prox 
+
+###Regulators in Id
+regulators_distal<- list(proxi_NGF=ExtractRegulators(dat=per_type[[5]][,c(27:30)]),
+                           proxi_NT3=ExtractRegulators(dat=per_type[[6]][,c(27:30)]),
+                           dist_NGF=ExtractRegulators(dat=per_type[[7]][,c(27:30)]),
+                           dist_NT3=ExtractRegulators(dat=per_type[[8]][,c(27:30)])
+)
+allregs_dist           <- unique(unlist(regulators_distal))
+allregs_dist           <- allregs_dist[!is.na(allregs_dist)]
+
+
+myregulators <- list(
+  proxi_NGF=unique(unlist(lapply(strsplit(rownames(per_type[[1]])[proximal_NGF],split="_"),function(Z)return(Z[[1]])))),
+  proxi_NT3=unique(unlist(lapply(strsplit(rownames(per_type[[1]])[proximal_NT3],split="_"),function(Z)return(Z[[1]])))),
+  distal_NGF=unique(unlist(lapply(strsplit(rownames(per_type[[1]])[distal_NGF],split="_"),function(Z)return(Z[[1]])))),
+  distal_NT3=unique(unlist(lapply(strsplit(rownames(per_type[[1]])[distal_NT3],split="_"),function(Z)return(Z[[1]]))))
+  
+)
+
+```
+
 ```
