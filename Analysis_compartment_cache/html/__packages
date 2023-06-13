@@ -21,3 +21,7 @@ annotate
 geneplotter
 ape
 multtest
+graph
+GO.db
+SparseM
+topGO

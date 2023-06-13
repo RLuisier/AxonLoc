@@ -1,5 +1,5 @@
 ---
-title: "Compartment-specificity of the transcriptome in NT3 and NGF conditions"
+title: "Specificity of the axonal transcriptome in NT3 and NGF conditions"
 author: "Raphaelle Luisier, Idiap Research Institute"
 date: "February 2023"
 output:
@@ -19,35 +19,25 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_chunk$set(cache =TRUE)
 knitr::opts_chunk$set(fig.width=16, fig.height=10, figure.align = "center") 
-library(ggplot2) # devtools::install_github('hadley/ggplot2')
-library(RColorBrewer)
-library(wesanderson)
+#library(ggplot2) # devtools::install_github('hadley/ggplot2')
+#library(RColorBrewer)
+#library(wesanderson)
 library(knitr)
-library(mclust)
+#library(mclust)
 #library(limma)
-require(gplots)
-#library(lme4)
-#library(nlme)
-#source("http://bioconductor.org/biocLite.R")
-#require("GO.db")
-#require("limma")
-#require("topGO")
-#require("biomaRt")
-#require("org.Rn.eg.db")
-#library(grDevices)
-library(Rsamtools)
-library(IRanges)
-library(GenomicRanges)
+#require(gplots)
+#library(Rsamtools)
+#library(IRanges)
+#library(GenomicRanges)
 library(rtracklayer)
-library(geneplotter)
-library("ape")
-require("multtest")
-require("mclust")
+library(topGO)
+#library(geneplotter)
+
 
 rm(list = ls())
 ```
 
-# Load the data
+# Load the data {.tabset}
 3' UTR isoform quantification from 8 samples originating from rat neuronal sympathetic cell cultures where the cell body is treated with low does of NGF and distal axons are either exposed to NGF or NT3. There are a total of 8 samples: cell body versus distal axons in NGF versus NT3 culture condition across 2 technical replicates.
 
 ```{r load_data_load_scripts}
@@ -62,10 +52,8 @@ load("./data/files_analysis_Nov2017.RData")
 
 
 
-# Diversity of mRNA pool in cell body versus axons
-
-
-
+# Diversity of mRNA pool in cell body versus axons {.tabset}
+We next analyse the reliably expressed 3' UTR isoforms and associated transcript ID in each compartment.
 ```{r analysis_content,warning=FALSE,fig.width=10, fig.height=3.5}
 # A. Characterise the expression in each compartment
 
@@ -188,6 +176,7 @@ mtext(side=2,line=3,text="# txID",cex=0.7)
 
 ```
 
+We now compare the two neurotrophic conditions and find that although the axonal compartments are similar, there are about 2,000 transcripts that are unique to each condition.
 
 ```{r analysis_content_bis,warning=FALSE,fig.width=10, fig.height=3.5}
 #Compare NGF and NT3 in terms of the number of overlapping transcript ID per compartment
@@ -248,50 +237,7 @@ mtext(side=2,line=2,text="# transcript ID detected in axons",cex=0.7)
 
 ```
 
-
-# Dominant factors underlying axonal localisation
-As shown below, the fraction of 3' UTR reliably expressed in the axonal compartment depends on the expression in the cell body, supporting the hypothesis that the axonal localisation of mRNA is determined by both specific regulators enabling active transports as well as transcriptional level as highly expressed transcripts are more likely to be detected in axons. This does not mean that the latter are passively transported but rather that these are actively transported to the axons through a machiney which 'randomly' recruit mRNA to actively transport these to axons. 
-
-
-Notably the transcript length is another key factor that impacts the likelyhood to be detected in the axonal compartment; the longer the transcript the less likely it will be localised. 
-```{r analysis_fraction_detected_per_range_expression,warning=FALSE,fig.width=8, fig.height=4}
-#Analysis of the dependendence between what is detected and 
-colsNGF <- c("#81A4D6","#2D598E","#083872")
-colsNT3 <- c("#AE73B1","#79387C","#57055B")
-#Calculate per range of expression in the cell body, the fraction of transcript detected in the axonal compartment
-
-avg.cb.ngf        <- apply(log2(1+cbind(anno_tot$NGF.cb.1.raw.corrected,anno_tot$NGF.cb.2.raw.corrected)),1,mean)
-avg.cb.nt3        <- apply(log2(1+cbind(anno_tot$NT3.cb.1.raw.corrected,anno_tot$NT3.cb.2.raw.corrected)),1,mean)
-avg.ngf.axons     <- apply(log2(1+cbind(anno_tot$NGF.axon.1.raw.corrected,anno_tot$NGF.axon.2.raw.corrected)),1,mean)
-avg.nt3.axons     <- apply(log2(1+cbind(anno_tot$NT3.axon.1.raw.corrected,anno_tot$NT3.axon.2.raw.corrected)),1,mean)
-par(mfrow=c(1,2))
-myLims            <- seq(from=0,by=1.5,to=20)
-bins.ngf          <- cut(avg.cb.ngf,myLims,include.lowest = FALSE)
-bins.nt3          <- cut(avg.cb.nt3,myLims,include.lowest = FALSE)
-frac_detected_ngf <- unlist(tapply(X=anno_tot$detect.txID.ngf,INDEX=bins.ngf,FUN=function(A)return(sum(A=="both")/length(A))))
-frac_detected_nt3 <- unlist(tapply(X=anno_tot$detect.txID.nt3,INDEX=bins.nt3,FUN=function(A)return(sum(A=="both")/length(A))))
-myx <-unlist(lapply(c(2:length(myLims)),function(IX)return(mean(myLims[c(IX,IX-1)]))))
-plot(myx,frac_detected_ngf,las=1,col=colsNGF[1],pch=19,cex=0.7,frame=FALSE,ylab="fraction of detected tX in axons",xlab="expression in cb [log2]",ylim=c(0,1),xlim=c(0,20))
-lines(myx,frac_detected_ngf,las=1,col=colsNGF[1])
-points(myx,frac_detected_nt3,las=1,col=colsNT3[1],pch=19,cex=0.7)
-lines(myx,frac_detected_nt3,las=1,col=colsNT3[1])
-legend("bottomright",col=c(colsNGF[1],colsNT3[1]),pch=19,leg=c("NGF","NT3"))
-
-
-myLims            <- seq(from=2,by=0.25,to=4)
-bins.ngf          <- cut(log10(anno_tot$txLength),myLims,include.lowest = FALSE)
-bins.nt3          <- cut(log10(anno_tot$txLength),myLims,include.lowest = FALSE)
-frac_detected_ngf <- unlist(tapply(X=anno_tot$detect.txID.ngf,INDEX=bins.ngf,FUN=function(A)return(sum(A=="both")/length(A))))
-frac_detected_nt3 <- unlist(tapply(X=anno_tot$detect.txID.nt3,INDEX=bins.nt3,FUN=function(A)return(sum(A=="both")/length(A))))
-myx <-unlist(lapply(c(2:length(myLims)),function(IX)return(mean(myLims[c(IX,IX-1)]))))
-plot(myx,frac_detected_ngf,las=1,col=colsNGF[1],pch=19,cex=0.7,frame=FALSE,ylab="fraction of detected tX in axons",xlab="txlength [log10]",ylim=c(0.4,0.8),xlim=c(2,4))
-lines(myx,frac_detected_ngf,las=1,col=colsNGF[1])
-points(myx,frac_detected_nt3,las=1,col=colsNT3[1],pch=19,cex=0.7)
-lines(myx,frac_detected_nt3,las=1,col=colsNT3[1])
-```
-
-
-# Characterise compartment-specific 3' UTR characteristics
+# Characterise compartment-specific 3' UTR characteristics {.tabset}
 As shown below, and as previously reported in Andreassi et al. (Cell Reports, 2021), the transcripts ID that localise to the axons exhibit a significant higher diversity in 3' UTR isoforms and significant longer 3' UTR length. 
 ```{r analysis_3UTR_length,warning=FALSE,fig.width=10, fig.height=4}
 
@@ -434,11 +380,11 @@ mtext(side=1,line=1,at=c(2,5),text=c("NGF","NT3"),cex=0.7)
 
 ```
 
-# Comparison of the NGF and NT3 axonal transcriptome
-Here we study the differences in the axonal transcriptome between NGF and NT3 conditions.
+# Comparison of the NGF and NT3 axonal transcriptome {.tabset}
+Here we characterise the differences in the two compartment in terms of 3' UTR isoform diversity, 3' UTR length and biological pathways.
 
 ```{r GO_analysis_tx_uniquely_localised,warning=FALSE,fig.width=10, fig.height=4,eval=FALSE}
-t2g                     <- read.csv("~/Desktop/DataAnalsyisRiccio/t2g_biomaRt.csv")
+t2g                     <- read.csv("./data/t2g_biomaRt.csv")
 txID2GO                 <- tapply(t2g$ensembl_transcript_id,INDEX=t2g$go_id,FUN=function(x)return(x))
 noNodes                 <- 300
 
@@ -503,7 +449,7 @@ myenrich            <- lapply(c(1:length(mysampleGO.ax)),function(Z){
 
 ```
 
-```{r,characterise_axonal_pool,warning=FALSE,fig.width=10, fig.height=8}
+```{r,characterise_axonal_pool,warning=FALSE,fig.width=12, fig.height=8}
 
 par(mfrow=c(2,4))
 
@@ -521,8 +467,7 @@ venn(list(NT3=ax.nt3,NGF=ax.ngf))
 mp<-barplot(cbind(with.multiple.ngf*100,with.multiple.nt3*100),border=unlist(lapply(col_treatment[c(2,3)],function(Z)rep(Z,2))),col=c(col_treatment[2],"white",col_treatment[3],"white"),las=1,frame=F,beside=T,ylim=c(0,100))
 mtext(side=2,line=3,text="fraction of txID with multiple iso",cex=0.7)
 mtext(side=1,line=0,at=mp,text=c("NGF","NT3"),cex=0.7)
-legend("top",ncol=2,pch=15,col=mycols[c(1,2)],leg=c("CB","axons"),cex=0.7)
-mtext(side=3,line=0,text=c("P(Fisher):",pval_NGF,pval_NT3),at=c(0,2,5),cex=0.7)
+mtext(side=3,line=-2,text=c("P(Fisher):",pval_NGF,pval_NT3),at=c(0,2,5),cex=0.7)
 arrows(x0=1.0,y0=80,x1=3,y1=80,length = 0)
 arrows(x0=4,y0=80,x1=6,y1=80,length = 0)
 
@@ -536,7 +481,7 @@ mtext(side=2,line=3,text="3' UTR length [nt]",cex=0.7)
 mtext(side=1,line=0,at=c(1:6),text=rep(c("Ens","CB","AX"),2),cex=0.7)
 mtext(side=1,line=1,at=c(2,5),text=c("NGF","NT3"),cex=0.7)
 
-
+par(mar=c(3,15,3,3))
 #Compare the GO terms that are specific to Axons NGF versus NT3
 enrich_ngf <- read.csv("./zenodo/compart/enrichment/W0_ax.only.ngf_f.csv")
 enrich_nt3 <- read.csv("./zenodo/compart/enrichment/W0_ax.only.nt3_f.csv")
@@ -560,9 +505,53 @@ vec_ngf         <- sort(vec_ngf,decreasing=TRUE)
 vec_nt3         <- -log10(enrich_nt3$weight0Fisher[enrich_nt3$Significant>=5&enrich_nt3$weight0Fisher<=0.01])
 names(vec_nt3)  <- as.character(enrich_nt3$Term[enrich_nt3$Significant>=5&enrich_nt3$weight0Fisher<=0.01])
 vec_nt3         <- sort(vec_nt3,decreasing=TRUE)
-barplot(rev(vec_ngf[c(1:5)]),col="#81A4D6",las=1,horiz=TRUE,cex.names=0.8)
-barplot(rev(vec_nt3[c(1:5)]),col="#AF72B0",las=1,horiz=TRUE,cex.names=0.8)
+barplot(rev(vec_ngf[c(1:5)]),col="#81A4D6",las=1,horiz=TRUE,cex.names=1.0)
+barplot(rev(vec_nt3[c(1:5)]),col="#AF72B0",las=1,horiz=TRUE,cex.names=1.0)
 ```
+
+# Dominant factors underlying axonal localisation {.tabset}
+As shown below, the fraction of 3' UTR reliably expressed in the axonal compartment depends on the expression in the cell body, supporting the hypothesis that the axonal localisation of mRNA is determined by both specific regulators enabling active transports as well as transcriptional level as highly expressed transcripts are more likely to be detected in axons. This does not mean that the latter are passively transported but rather that these are actively transported to the axons through a machiney which 'randomly' recruit mRNA to actively transport these to axons. 
+
+
+Notably the transcript length is another key factor that impacts the likelyhood to be detected in the axonal compartment; the longer the transcript the less likely it will be localised. 
+```{r analysis_fraction_detected_per_range_expression,warning=FALSE,fig.width=8, fig.height=4}
+#Analysis of the dependendence between what is detected and 
+colsNGF <- c("#81A4D6","#2D598E","#083872")
+colsNT3 <- c("#AE73B1","#79387C","#57055B")
+#Calculate per range of expression in the cell body, the fraction of transcript detected in the axonal compartment
+
+avg.cb.ngf        <- apply(log2(1+cbind(anno_tot$NGF.cb.1.raw.corrected,anno_tot$NGF.cb.2.raw.corrected)),1,mean)
+avg.cb.nt3        <- apply(log2(1+cbind(anno_tot$NT3.cb.1.raw.corrected,anno_tot$NT3.cb.2.raw.corrected)),1,mean)
+avg.ngf.axons     <- apply(log2(1+cbind(anno_tot$NGF.axon.1.raw.corrected,anno_tot$NGF.axon.2.raw.corrected)),1,mean)
+avg.nt3.axons     <- apply(log2(1+cbind(anno_tot$NT3.axon.1.raw.corrected,anno_tot$NT3.axon.2.raw.corrected)),1,mean)
+par(mfrow=c(1,2))
+myLims            <- seq(from=0,by=1.5,to=20)
+bins.ngf          <- cut(avg.cb.ngf,myLims,include.lowest = FALSE)
+bins.nt3          <- cut(avg.cb.nt3,myLims,include.lowest = FALSE)
+frac_detected_ngf <- unlist(tapply(X=anno_tot$detect.txID.ngf,INDEX=bins.ngf,FUN=function(A)return(sum(A=="both")/length(A))))
+frac_detected_nt3 <- unlist(tapply(X=anno_tot$detect.txID.nt3,INDEX=bins.nt3,FUN=function(A)return(sum(A=="both")/length(A))))
+myx <-unlist(lapply(c(2:length(myLims)),function(IX)return(mean(myLims[c(IX,IX-1)]))))
+plot(myx,frac_detected_ngf,las=1,col=colsNGF[1],pch=19,cex=0.7,frame=FALSE,ylab="fraction of detected tX in axons",xlab="expression in cb [log2]",ylim=c(0,1),xlim=c(0,20))
+lines(myx,frac_detected_ngf,las=1,col=colsNGF[1])
+points(myx,frac_detected_nt3,las=1,col=colsNT3[1],pch=19,cex=0.7)
+lines(myx,frac_detected_nt3,las=1,col=colsNT3[1])
+legend("bottomright",col=c(colsNGF[1],colsNT3[1]),pch=19,leg=c("NGF","NT3"))
+
+
+myLims            <- seq(from=2,by=0.25,to=4)
+bins.ngf          <- cut(log10(anno_tot$txLength),myLims,include.lowest = FALSE)
+bins.nt3          <- cut(log10(anno_tot$txLength),myLims,include.lowest = FALSE)
+frac_detected_ngf <- unlist(tapply(X=anno_tot$detect.txID.ngf,INDEX=bins.ngf,FUN=function(A)return(sum(A=="both")/length(A))))
+frac_detected_nt3 <- unlist(tapply(X=anno_tot$detect.txID.nt3,INDEX=bins.nt3,FUN=function(A)return(sum(A=="both")/length(A))))
+myx <-unlist(lapply(c(2:length(myLims)),function(IX)return(mean(myLims[c(IX,IX-1)]))))
+plot(myx,frac_detected_ngf,las=1,col=colsNGF[1],pch=19,cex=0.7,frame=FALSE,ylab="fraction of detected tX in axons",xlab="txlength [log10]",ylim=c(0.4,0.8),xlim=c(2,4))
+lines(myx,frac_detected_ngf,las=1,col=colsNGF[1])
+points(myx,frac_detected_nt3,las=1,col=colsNT3[1],pch=19,cex=0.7)
+lines(myx,frac_detected_nt3,las=1,col=colsNT3[1])
+```
+
+
+
 
 
 
