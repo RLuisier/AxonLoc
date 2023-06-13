@@ -2,7 +2,7 @@
 
 ![Overview of the analysis](./data/ga.png)
 
-This repository contains the source code and related to reproduce the figures of the manuscript entitled [The RNA binding proteome of axonal mRNAs in sympathetic neurons](https://www.biorxiv.org/content/10.1101/2022.11.23.517728v1) by R Luisier, C Andreassi, L Fournier and A Riccio.
+This repository contains the source code to reproduce the figures of the manuscript entitled [The RNA binding proteome of axonal mRNAs in sympathetic neurons](https://www.biorxiv.org/content/10.1101/2022.11.23.517728v1) by R Luisier, C Andreassi, L Fournier and A Riccio. The repository contains:
 
 -   [Dependencies](#Dependencies)
 -   [Repo Content](#Repo-Content)
@@ -40,8 +40,7 @@ To run the jupyter notebook, create a python environment with [conda](https://do
 * [Scripts](./scripts): `R`, `Python` and `Bash` custome code
 
 ## Samples description
-3’ end sequencing of RNA isolated from axons and cell bodies of sympathetic neurons exposed to either Nerve Growth factor (NGF) or Neurotrophin 3 (NT3). 
-Source code related to the manuscript **The RNA Binding proteome of axonal mRNAs in sympathetic neurons**, Luisier et al. (2023).
+3’ end sequencing of RNA isolated from axons and cell bodies of sympathetic neurons exposed to either Nerve Growth factor (NGF) or Neurotrophin 3 (NT3). To identify mRNAs localised in sympathetic cell bodies and axons, we combined compartmentalized cultures and 3’UTR sequencing (Andreassi et al. 2021). Compartmentalized chambers allow the physical separation of cell bodies from distal axons and are especially suited for sympathetic neurons because these grow in culture as a highly homogeneous population without glial cells.  Neurons were seeded in the central compartment with NGF (100 ng/ml) and after 5 days, the NGF was lowered to 10ng/ml in the cell bodies, and NGF or NT3 were supplied at high concentration to the peripheral compartments to stimulate axon growth.  After 7 additional days in vitro, RNA was isolated from either cell bodies or axons, subject to 2 rounds of linear amplification and sequenced by using 3’end-Seq . This technique allowed the sequencing of transcripts 3’ends independently of the length of the transcript (Andreassi et al. 2021). There are two technical replicates for each neurotrophin condition. 
 
 ## Summary of the analysis and results
 
