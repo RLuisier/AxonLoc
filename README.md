@@ -1,4 +1,4 @@
-# Computational predictions of the RBPome underlying mRNA metabolism in developing neurons in response to neurotrophins
+# Predicted RBP regulome that shapes axonal transcriptome
 
 ![Overview of the analysis](./data/ga.png)
 
