@@ -1,4 +1,4 @@
-# Axonal Localisation Score from 3'end sequencing data
+# Computational predictions of the RBPome underlying mRNA metabolism in developing neurons in response to neurotrophins
 
 ![Overview of the analysis](./data/ga.png)
 
