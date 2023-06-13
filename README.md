@@ -1,6 +1,6 @@
 # Axonal Localisation Score from 3'end sequencing data
 
-![Overview of the analysis](ga.png)
+![Overview of the analysis](./data/ga.png)
 
 This repository contains the source code and related to reproduce the figures of the manuscript entitled [The RNA binding proteome of axonal mRNAs in sympathetic neurons](https://www.biorxiv.org/content/10.1101/2022.11.23.517728v1) by R Luisier, C Andreassi, L Fournier and A Riccio.
 
