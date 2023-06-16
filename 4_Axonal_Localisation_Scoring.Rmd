@@ -71,9 +71,12 @@ load("./zenodo/files_analysis_Nov2017.RData")#anno_tot: 35534:52
 
 source("./scripts/nested_fun_differential_PAS.R")
 source("./scripts/nested_fun_nt3_ngf.R")
+diff.transport.neurotrophins<-read.csv("./zenodo/transport/diff_transport.csv")
 
 colNGF <- c("#81A4D6",rgb(129/255,164/255,214/255,0.25))
 colNT3 <- c("#AE72B0",rgb(174/255,114/255,176/255,0.25))
+load("./zenodo/transport/regulation/welch.RData")
+load("./zenodo/transport/regulation/fisher.RData")
 ```
 
 
@@ -438,8 +441,7 @@ Let's now check that the axonal localisation score does not depend on the read c
 ```{r stats_localisation_scores,echo=TRUE,fig.width=10, fig.height=10}
 
 transport <- read.csv("./zenodo/transport/diff_localisationscore/transport.csv")
-
-transport <- read.csv("./data/transport.csv")
+#transport <- read.csv("./data/transport.csv")
 
 
 PlotWithAVG <- function(myxval=transport$cb.ngf,myyval=transport$transport.ngf,myxlab="avg.ngf,cb [log2]",myylab="transport efficiency",myylim=c(-4,4),myxlim=c(0,20)){
@@ -514,12 +516,10 @@ sel_expression <- transport$anno_tot.NT3.axon.1.raw.corrected.match.rownames.myO
 more_transported_NT3 <- data.frame(coord=transport$coord,transport)[sel_diff&sel_NGF&sel_NT3&sel_rem,]
 
 
-oi<- setdiff(more_transported_NGF$uniqueIDs,more_transp_NGF$uniqueIDs)
-View(transport[match(oi,transport$uniqueIDs),])
 ```
 
 
-```{r compare_diff_transport_methods,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=12, fig.height=9}
+```{r compare_diff_transport_methods,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=9, fig.height=6}
 #LS
 more_transported_NGF <- read.csv("./zenodo/transport/diff_localisationscore/more_transport_NGF.csv")
 more_transported_NT3 <- read.csv("./zenodo/transport/diff_localisationscore/more_transport_NT3.csv")
@@ -565,6 +565,107 @@ grid()
 
 ```
 
+# Pathway enrichment analysis
+```{r GO_analysis,eval=FALSE}
+
+#
+#GO on transported BPs compared to random -- on continuous values
+#
+#
+require("topGO")
+t2g                <- read.csv("./data/t2g_biomaRt.csv")
+x                  <- org.Rn.egGO
+mapped_genes       <- mappedkeys(x)
+GO2geneID          <- as.list(x[mapped_genes])
+geneID2GO          <- as.list(org.Rn.egGO2EG)
+goterms            <- Term(GOTERM)
+geneNames          <- names(GO2geneID)
+myGS               <- anno_tot$geneSymbol
+eid                <- t2g$entrezgene[match(myGS,t2g$external_gene_name)]
+eid                <- eid[!is.na(eid)]
+geneList           <- factor(as.numeric(geneNames%in%as.character(eid)))
+names(geneList)    <- geneNames
+mysampleGO         <- new("topGOdata",description = "Simple session", ontology = "BP",allGenes = geneList, geneSel = as.character(eid),nodeSize = 10,annot = annFUN.GO2genes,GO2gene=geneID2GO)
+myterms            <- data.frame(goID=names(goterms),Term=unlist(goterms))
+size.terms         <- unlist(lapply(names(goterms),function(goID){
+  if(length(genesInTerm(mysampleGO, goID))==0){return(0)}
+  else{
+    return(length(genesInTerm(mysampleGO, goID)[[1]]))
+  }
+}))
+goterms <- goterms[size.terms>20]
+
+
+
+myMat.rdm           <- list(replicate(1000,myOut.ngf$p.val.max[sample(c(1:nrow(myOut.ngf)))]),
+                            replicate(1000,myOut.ngf$p.value.norm[sample(c(1:nrow(myOut.ngf)))]),
+                            replicate(1000,myOut.ngf$p.value.bn[sample(c(1:nrow(myOut.ngf)))]),
+                            replicate(1000,myOut.ngf$error[sample(c(1:nrow(myOut.ngf)))]),
+                            replicate(1000,myOut.nt3$p.val.max[sample(c(1:nrow(myOut.nt3)))]),
+                            replicate(1000,myOut.nt3$p.value.norm[sample(c(1:nrow(myOut.nt3)))]),
+                            replicate(1000,myOut.nt3$p.value.bn[sample(c(1:nrow(myOut.nt3)))]),
+                            replicate(1000,myOut.nt3$error[sample(c(1:nrow(myOut.nt3)))]))
+                            
+                            
+myVec               <- list(myOut.ngf$p.val.max,
+                            myOut.ngf$p.value.norm,
+                            myOut.ngf$p.value.bn,
+                            myOut.ngf$error,
+                            myOut.nt3$p.val.max,
+                            myOut.nt3$p.value.norm,
+                            myOut.nt3$p.value.bn,
+                            myOut.nt3$error)
+names(myVec[[1]])<-  names(myVec[[2]])<- names(myVec[[3]])<- names(myVec[[4]])<-  myOut.ngf$geneSymbol 
+names(myVec[[5]])<-  names(myVec[[6]])<- names(myVec[[7]])<- names(myVec[[8]])<-  myOut.nt3$geneSymbol 
+
+
+temp                <- do.call(lapply(c(1:length(goterms)),function(Z){
+  print(Z)
+  return(unlist(lapply(c(1:length(myVec)),function(IX)return(GetEnrichGO(goID=names(goterms)[Z],myvec=myVec[[IX]],myMat=myMat.rdm[[IX]])))))
+}),what=rbind)
+
+enrich.GO.transport <- data.frame(names(goterms),goterms,temp)
+colnames(enrich.GO.transport)[c(3:10)]<- c("p.val.max.ngf","p.value.norm.ngf","p.value.bn.ngf","error.ngf",
+                                           "p.val.max.nt3","p.value.norm.nt3","p.value.bn.nt3","error.nt3")
+
+enrich.GO.transport                <- enrich.GO.transport[,c(1,2,3,7,4,8,5,9,6,10)]
+enrich.GO.transport$diff.pval.max  <- enrich.GO.transport$p.val.max.ngf-enrich.GO.transport$p.val.max.nt3
+enrich.GO.transport$diff.pval.norm <- enrich.GO.transport$p.val.norm.ngf-enrich.GO.transport$p.val.norm.nt3
+enrich.GO.transport$diff.pval.bn   <- enrich.GO.transport$p.val.bn.ngf-enrich.GO.transport$p.val.bn.nt3
+enrich.GO.transport$diff.error     <- enrich.GO.transport$error.ngf-enrich.GO.transport$error.nt3
+#write.csv(enrich.GO.transport,file="./zenodo/transport/enrich/enrich_transport.csv")
+
+#Difference in transported GO between NGF and NT3
+temp                <- do.call(lapply(c(1:length(goterms)),function(Z){
+  print(Z)
+  return(GetEnrichDiff(goID=names(goterms)[Z]))
+}),what=rbind)
+
+enrich.GO.diff.transport          <- data.frame(names(goterms),goterms,temp)
+colnames(enrich.GO.diff.transport)<- c("GO.ID","Term","my.diff.norm","zscore.norm","my.diff.error","no.terms")
+#write.csv(enrich.GO.diff.transport,file="./zenodo/transport/enrich/enrich_diff_transport.csv")
+```
+
+
+```{r bp_over_transported,,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=9, fig.height=6}
+enrich.GO.transport<- read.csv("./zenodo/transport/enrich/enrich_transport.csv")
+enrich.GO.diff.transport <- read.csv("./zenodo/transport/enrich/enrich_diff_transport.csv")
+
+#To check whether the p-value makes sense, we check the biological pathways which are best transported, or more transported than expected. And it seems to work pretty weel :-)
+myid                    <-"GO:0030574"
+myVec.nt3               <- myOut.nt3$p.value.norm
+names(myVec.nt3)        <- myOut.nt3$geneSymbol 
+myVec.ngf               <- myOut.ngf$p.value.norm
+names(myVec.ngf)        <- myOut.ngf$geneSymbol 
+
+PlotEnrichGO(goID=myid,myvec=myVec[[1]],name="-log10(P-value) transport")
+PlotEnrichGO(goID=myid,myvec=myVec[[5]],name="-log10(P-value) transport")
+
+
+
+                            
+                            
+```
 
 # Regulation of transport
 Here we integrate with CLIP-sequencing data to look into the potential of 126 RBPs to regulate axonal localisation.
@@ -590,14 +691,14 @@ for(IX in c(1:length(mynames_rages))){
 ```
 
 
+
 ## RBPome underlying cell body restriction
 In order to identify negative regulators of axonal localisation, we focus on the region [-250;-50] preceding the 3' end and perform Fisher count enrichment test to look for RBPs exhibiting significant enrichment in cross-link regions in those 3' UTR isoforms exhibiting restricted axonal localisation. 
 
 
 
-```{r identify_regulators_stability,eval=FALSE}
+```{r prepare_data_for_fisher,eval=TRUE}
 #diff.transport.neurotrophins<-read.csv("~/Desktop/DataAnalsyisRiccio/AxonalTransport/diff_transport.csv")
-diff.transport.neurotrophins<-read.csv("./zenodo/transport/diff_transport.csv")
 source("./scripts/nested_fun_nt3_ngf.R")
 
 q_NGF           <- quantile(diff.transport.neurotrophins$transport.ngf,seq(from=0,by=0.1,to=1.0))
@@ -654,6 +755,9 @@ diff_neuro       = unlist(mapply(A=as.character(is_more_NGF),B=as.character(is_m
   }
 }))
 
+```
+
+```{r compute_fisher,eval=FALSE}
 myFracsROI       <- matrix(0,ncol=7,nrow=ncol(clipdatOI))
 myPvalsFisherROI <- matrix(0,ncol=9,nrow=ncol(clipdatOI))
 
@@ -704,6 +808,10 @@ for(IX in  c(1:ncol(clipdatOI))){
 }
 
 
+save(list=c("myPvalsFisherROI","myFracsROI"),file="./zenodo/transport/regulation/fisher.RData")
+```
+
+```{r identify_regulators_stability,eval=TRUE}
 IX=match("U2AF2_1_K652",colnames(clipdatOI))
 myFracsROI <- cbind(myFracsROI,myFracsROI[,match("frac_more_NGF",colnames(myFracsROI))]-myFracsROI[,match("frac_more_NT3",colnames(myFracsROI))])
 
@@ -719,6 +827,7 @@ myregulators_stability      <- myRBP[myRBP$Clip%in%intersect(sel_NGF_fisher,sel_
 
 ```
 
+Here we perform Wech's t-test to identify regulators of transport globally.
 
 ```{r welchs_ttest, eval=FALSE}
 names_files     <- c("transport_NGF","transport_NT3","NT3_vs_NGF_transport")
@@ -772,9 +881,6 @@ rownames(ttest_difftransport)    <- rownames(myTtest_transport_reg[[1]])
 
 ```{r analysis_regulatory_regions,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=12, fig.height=8}
 
-load("./zenodo/transport/regulation/welch.RData")
-
-
 plotLineWithSD<-function(x=(-unlist(lapply(myranges,mean))[-1]),mymat=fisher_proxi_NGF_reg,col1="#81A4D6",col2=rgb(129/255,164/255,214/255,0.3),YLIM=c(-2,2),YLAB="Ip Fisher Enrichment",MAIN="Proximal"){
   mean_force=apply(mymat,2,function(W)return(median(W,na.rm=TRUE)))
   sd=apply(mymat,2,function(W)return(sd(W,na.rm=TRUE)))
@@ -816,49 +922,33 @@ abline(v=0,col="darkred")
 ```
 
 
-```{r analysis_negative_regulators}
-
+The preferential localisation of the negative regulators of axonal localisation is shown below:
+```{r analysis_negative_regulators,eval=FALSE,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=5, fig.height=6}
 myregulators_stability      <- read.csv("./zenodo/transport/regulation/regulators_stabiliyt.csv")
 par(mfrow=c(3,3))
 PlotHeatmapRegulators(mots=myregulators_stability$Clip,mymats=list(ttest_transport_NGF[,-1],ttest_transport_NT3[,-1]),scaling=FALSE)
-PlotTransportAnalysisGlobal(mot="KHSRP_2_K652",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-PlotTransportAnalysisGlobal(mot="HuR_iClip",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-PlotTransportAnalysisGlobal(mot="FUBP3_1_HepG2",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-
-PlotTransportAnalysisGlobal(mot="Celf4_iClip",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-
-sel_NGF_welch  <- rownames(ttest_difftransport)[apply(ttest_difftransport[,c(24:26)]>1.96,1,sum)>0]
-sel_NGF_welch  <- rownames(ttest_difftransport)[apply(ttest_transport_NGF[,c(24:26)]-ttest_transport_NT3[,c(24:26)],1,max)>0]
-
-PlotTransportAnalysisGlobal(mot="RBM15_2_K652",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-
-
-
-sel_NGF_fisher <- rownames(myPvalsFisherROI)[which(myPvalsFisherROI[,2]>mylims[5,2])]
-
-
-diff_temp <- myPvalsFisherROI[,match("fisher_NGF_over",colnames(myPvalsFisherROI))]-myPvalsFisherROI[,match("fisher_NT3_over",colnames(myPvalsFisherROI))]
-names(diff_temp) <- rownames(myPvalsFisherROI)
-PlotTransportAnalysisGlobal(mot="FUS_iClip",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-PlotTransportAnalysisGlobal(mot="SLTM_1_K652",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-PlotTransportAnalysisGlobal(mot="EIF4G2_1_K652",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-
-
 ```
 
 
 
-```{r condensate_analysis}
+The preferential localisation of the positive regulators of axonal localisation is shown below:
+```{r analysis_positive_regulators,eval=FALSE,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=5, fig.height=6}
 myregulators_transport <- read.csv("./zenodo/transport/regulation/regulators_transport.csv")
-#write.csv(myregulators_transport,file="./zenodo/transport/regulation/regulators_transport.csv")
+par(mfrow=c(3,3))
+PlotHeatmapRegulators(mots=myregulators_transport$Clip,mymats=list(ttest_transport_NGF[,-1],ttest_transport_NT3[,-1]),scaling=FALSE)
+```
 
+
+
+
+```{r condensate,eval=FALSE,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=5, fig.height=3}
 
 
 mytempregs <- list(positive_reg <- rownames(myPvalsFisherROI)[which(myPvalsFisherROI[,1]>mylims[4,1])],
                    negative_reg <- rownames(myPvalsFisherROI)[which(myPvalsFisherROI[,2]>mylims[4,2])])
 
 
-
+require(scales)
 BxPlotComps <- function(myList=lapply(mytempregs,function(Z)return(myRBP$transport.ngf[which(myRBP$Clips%in%Z)])),
                         myname="transport NGF",
                         myCol=c(colsNGF[1],colsNGF[2]),
@@ -880,12 +970,32 @@ BxPlotComps(myList=lapply(mytempregs,function(Z)return(myRBP$Condensate_Zscore[m
             myCol=c("white","grey"),
             YLIM=c(1.5,3.5))
 
+```
 
-par(mfrow=c(3,3))
-PlotHeatmapRegulators(mots=myregulators_transport$Clip,mymats=list(ttest_transport_NGF[,-1],ttest_transport_NT3[,-1]),scaling=FALSE)
+
+```{r TDP43_iClip_ex,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=12, fig.height=6}
 PlotTransportAnalysisGlobal(mot="TDP43_iClip",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
-PlotTransportAnalysisGlobal(mot="IGF2BP1_2_HepG2",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
+```
+
+
+```{r IGF2BP1_2_ex,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=12, fig.height=6}
+PlotTransportAnalysisGlobal(mot="IGF2BP1_2_K652",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
+```
+
+
+```{r FMR1_1_K652_K652_ex,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=12, fig.height=6}
 PlotTransportAnalysisGlobal(mot="FMR1_1_K652",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
+```
 
 
+```{r KHSRP_2_K652_ex,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=12, fig.height=6}
+PlotTransportAnalysisGlobal(mot="KHSRP_2_K652",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
+```
+
+```{r HuR_iClip_ex,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=12, fig.height=6}
+PlotTransportAnalysisGlobal(mot="HuR_iClip",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
+```
+
+```{r FUBP3_1_HepG2_ex,echo=TRUE,warning=FALSE,eval=TRUE,fig.width=12, fig.height=6}
+PlotTransportAnalysisGlobal(mot="FUBP3_1_HepG2",by_te=0.1,by_cb=0.1,limfrac=0.6,myMAX=0.6)
 ```

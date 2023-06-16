@@ -39,6 +39,8 @@ To run the jupyter notebook, create a python environment with [conda](https://do
 * [data](./data): folder containing the data for examples matrix of gene expression; etc. Raw sequencing data will be deposited publicly.
 * [Scripts](./scripts): `R`, `Python` and `Bash` custome code
 
+The attached code can be run with data that are publicly available on Zenodo (https://zenodo.org/record/8047412).
+
 ## Samples description
 3’ end sequencing of RNA isolated from axons and cell bodies of sympathetic neurons exposed to either Nerve Growth factor (NGF) or Neurotrophin 3 (NT3). To identify mRNAs localised in sympathetic cell bodies and axons, we combined compartmentalized cultures and 3’UTR sequencing (Andreassi et al. 2021). Compartmentalized chambers allow the physical separation of cell bodies from distal axons and are especially suited for sympathetic neurons because these grow in culture as a highly homogeneous population without glial cells.  Neurons were seeded in the central compartment with NGF (100 ng/ml) and after 5 days, the NGF was lowered to 10ng/ml in the cell bodies, and NGF or NT3 were supplied at high concentration to the peripheral compartments to stimulate axon growth.  After 7 additional days in vitro, RNA was isolated from either cell bodies or axons, subject to 2 rounds of linear amplification and sequenced by using 3’end-Seq . This technique allowed the sequencing of transcripts 3’ends independently of the length of the transcript (Andreassi et al. 2021). There are two technical replicates for each neurotrophin condition. 
 
@@ -61,15 +63,14 @@ The RBPome study that underlies APA in developing sympathetic neurons was perfor
 The analysis of the compartment-specific mRNA pools is presented in  [compartment analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/Analysis_compartment.html), that relates to the first part of the Figure 3.
 
 ### 6. Axonal Localisation Score
-The modeling of the axonal localisation alongside analysis of differential localisation between NGF and NT3 condition are presented in the  [LS analysis analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/4_Axonal_Localisation_Scoring.html), that relates to the second part of the Figure 3.
+The modeling of the axonal localisation alongside analysis of differential localisation between NGF and NT3 condition are presented in the  [LS analysis analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/4_Axonal_Localisation_Scoring.html), that relates to the second part of the Figure 3 and Figure 4.
 
-### 7. Predicted RBPome that shapes the axonal transcripome
 
-### 8. Synergistic regulatory potential of RBPs in axonal localisation
+### 7. Synergistic regulatory potential of RBPs in axonal localisation
 The analysis of the synergistic regulatory potential of RBPs in axonal localisation in presented [synergistic analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/6_RBP_regulome_localisation.html), that relates to the second part of Figure 5.
 
 
-### 9. Analysis of axonal remodelling
+### 8. Analysis of axonal remodelling
 The analysis of the axonal remodeling and related RBPome in presented [axonal remodelling analysis analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/axonal_remodelling_analysis.html), that relates to the second part of Figure 6.
 
 
