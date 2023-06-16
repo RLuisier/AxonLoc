@@ -69,6 +69,8 @@ The modeling of the axonal localisation alongside analysis of differential local
 The analysis of the synergistic regulatory potential of RBPs in axonal localisation in presented [synergistic analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/6_RBP_regulome_localisation.html), that relates to the second part of Figure 5.
 
 
+### 9. Analysis of axonal remodelling
+The analysis of the axonal remodeling and related RBPome in presented [axonal remodelling analysis analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/axonal_remodelling_analysis.html), that relates to the second part of Figure 6.
 
 
 
