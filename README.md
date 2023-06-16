@@ -42,10 +42,10 @@ To run the jupyter notebook, create a python environment with [conda](https://do
 ## Samples description
 3’ end sequencing of RNA isolated from axons and cell bodies of sympathetic neurons exposed to either Nerve Growth factor (NGF) or Neurotrophin 3 (NT3). To identify mRNAs localised in sympathetic cell bodies and axons, we combined compartmentalized cultures and 3’UTR sequencing (Andreassi et al. 2021). Compartmentalized chambers allow the physical separation of cell bodies from distal axons and are especially suited for sympathetic neurons because these grow in culture as a highly homogeneous population without glial cells.  Neurons were seeded in the central compartment with NGF (100 ng/ml) and after 5 days, the NGF was lowered to 10ng/ml in the cell bodies, and NGF or NT3 were supplied at high concentration to the peripheral compartments to stimulate axon growth.  After 7 additional days in vitro, RNA was isolated from either cell bodies or axons, subject to 2 rounds of linear amplification and sequenced by using 3’end-Seq . This technique allowed the sequencing of transcripts 3’ends independently of the length of the transcript (Andreassi et al. 2021). There are two technical replicates for each neurotrophin condition. 
 
-## Summary of the analysis and results
+## Analysis and results
 
 ### 1. Overview of the data
-The analysis of the read count and samples is presented [HERE](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/1_overview_data.html) that relates to Supplementary Figure 1.
+The analysis of the read count and samples is presented in the [preprocessing analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/1_overview_data.html) that relates to Supplementary Figure 1.
 
 ### 2. Differential gene expression analysis
 The analysis of the differential gene expression analysis between NT3 and NGF conditions together with transcription factor analysis is presented in [DGE analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/DGE_cell_body.html). This relates to first half of Figure 1.
