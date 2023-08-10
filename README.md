@@ -73,7 +73,8 @@ The analysis of the synergistic regulatory potential of RBPs in axonal localisat
 ### 8. Analysis of axonal remodelling
 The analysis of the axonal remodeling and related RBPome in presented [axonal remodelling analysis analysis](https://htmlpreview.github.io/?https://github.com/RLuisier/AxonLoc/blob/main/axonal_remodelling_analysis.html), that relates to the second part of Figure 6.
 
-
+### 9. Related publication
+This work has been published in Genome Research (doi: 10.1101/gr.277804.123).
 
 
 
